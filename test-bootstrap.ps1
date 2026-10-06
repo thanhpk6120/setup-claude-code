@@ -33,14 +33,36 @@ try {
     if (-not (Test-Path $tempJson)) { throw "ASSERTION FAILED: claude json missing" }
     $mcpRaw = Get-Content $tempJson -Raw
     $mcpJson = $mcpRaw | ConvertFrom-Json
-    if (-not $mcpJson.mcpServers.gitnexus -or -not $mcpJson.mcpServers.'company-atlassian' -or -not $mcpJson.mcpServers.context7 -or -not $mcpJson.mcpServers.glab -or -not $mcpJson.mcpServers.cloakbrowser) {
+    if (-not $mcpJson.mcpServers.gitnexus -or -not $mcpJson.mcpServers.'company-atlassian' -or -not $mcpJson.mcpServers.context7 -or -not $mcpJson.mcpServers.glab -or -not $mcpJson.mcpServers.cloakbrowser -or -not $mcpJson.mcpServers.memorix) {
         throw "ASSERTION FAILED: Missing mcp tools in json"
     }
 
-    if (-not (Test-Path (Join-Path $tempDir "CLAUDE.md"))) { throw "ASSERTION FAILED: CLAUDE.md missing" }
+    if ($mcpJson.mcpServers.memorix.command -ne "memorix") {
+        throw "ASSERTION FAILED: memorix command should be 'memorix', but was '$($mcpJson.mcpServers.memorix.command)'"
+    }
+    if ($mcpJson.mcpServers.memorix.args -contains "npx" -or $mcpJson.mcpServers.memorix.args -contains "memorix@latest") {
+        throw "ASSERTION FAILED: memorix args contains npx"
+    }
+
+    if ($mcpJson.mcpServers.glab.command -ne "glab") {
+        throw "ASSERTION FAILED: glab command should be 'glab', but was '$($mcpJson.mcpServers.glab.command)'"
+    }
+
+    $claudeMd = Join-Path $tempDir "CLAUDE.md"
+    if (-not (Test-Path $claudeMd)) { throw "ASSERTION FAILED: CLAUDE.md missing" }
+    $claudeMdContent = Get-Content $claudeMd -Raw
+    if ($claudeMdContent -notmatch "Root Project Agent Guide" -or $claudeMdContent -notmatch "Pre-flight Task Complexity" -or $claudeMdContent -notmatch "Global Rules") {
+        throw "ASSERTION FAILED: CLAUDE.md missing markers from old source files"
+    }
+
+    foreach ($oldFile in @("SYSTEM.md", "AGENTS.md", "RULES.md")) {
+        if (Test-Path (Join-Path $tempDir $oldFile)) {
+            throw "ASSERTION FAILED: $oldFile should not exist in temp dir"
+        }
+    }
+
     $skillsDir = Join-Path $tempDir "skills"
     if (-not (Test-Path $skillsDir)) { throw "ASSERTION FAILED: skills/ missing" }
-
     Write-Host "TEST PASSED: setup-claude-code bootstrap verified." -ForegroundColor Green
 } finally {
     if (Test-Path $tempDir) { Remove-Item -Recurse -Force $tempDir -ErrorAction SilentlyContinue }

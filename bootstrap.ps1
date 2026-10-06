@@ -157,8 +157,8 @@ $cloakScript = (Join-Path $cbTargetDir "mcp-server-full.mjs").Replace('\', '\\')
 $mcpJsonStr = @"
 {
   "memorix": {
-    "command": "npx",
-    "args": ["-y", "memorix@latest", "serve", "--mode", "lite"]
+    "command": "memorix",
+    "args": ["serve", "--mode", "lite"]
   },
   "gitnexus": {
     "command": "cmd",
@@ -209,14 +209,10 @@ if (-not $DryRun) {
 Write-Host "==> Copying static files and skills to $ClaudeDir..." -ForegroundColor Cyan
 if (-not $DryRun) {
     $claudeMdPath = Join-Path $ClaudeDir "CLAUDE.md"
-    $mdContent = ""
-    foreach ($mdFile in @("SYSTEM.md", "AGENTS.md", "RULES.md")) {
-        $srcPath = Join-Path $PSScriptRoot $mdFile
-        if (Test-Path $srcPath) {
-            $mdContent += (Get-Content -Path $srcPath -Raw) + "`n`n"
-        }
+    $srcClaude = Join-Path $PSScriptRoot "CLAUDE.md"
+    if (Test-Path $srcClaude) {
+        Copy-Item -Path $srcClaude -Destination $claudeMdPath -Force
     }
-    Set-Content -Path $claudeMdPath -Value $mdContent -Encoding UTF8
     
     $srcSkills = Join-Path $PSScriptRoot "skills"
     $targetSkills = Join-Path $ClaudeDir "skills"
