@@ -27,12 +27,63 @@ try {
 
     function global:npm { param([Parameter(ValueFromRemainingArguments)]$r) if ($r -contains "root" -and $r -contains "-g") { return $mockNpmDir } }
 
-    Write-Host "Running bootstrap into temp dir: $tempDir"
+    $mockOrcaDir = Join-Path $env:TEMP ("claude-orca-" + [System.Guid]::NewGuid().ToString("N"))
+    New-Item -ItemType Directory -Force -Path $mockOrcaDir | Out-Null
+    $mockOrcaPath = Join-Path $mockOrcaDir "claude-hook.cmd"
+    Set-Content -Path $mockOrcaPath -Value "echo orca"
+    $mockTrashGuardDir = Join-Path $env:TEMP ("claude-trashguard-" + [System.Guid]::NewGuid().ToString("N"))
+    New-Item -ItemType Directory -Force -Path $mockTrashGuardDir | Out-Null
+    $mockTrashGuardPath = Join-Path $mockTrashGuardDir "claude-pre-tool.cmd"
+    Set-Content -Path $mockTrashGuardPath -Value "@echo off"
+
+    Write-Host "Running bootstrap into temp dir (Case A: with orca hook): $tempDir"
+    $env:ORCA_HOOK_PATH = $mockOrcaPath
+    $env:TRASH_GUARD_HOOK_PATH = $mockTrashGuardPath
     & "$PSScriptRoot\bootstrap.ps1" -DryRun:$false -SkipInstall -ClaudeDir $tempDir -ClaudeJson $tempJson
 
     if (-not (Test-Path $tempJson)) { throw "ASSERTION FAILED: claude json missing" }
     $mcpRaw = Get-Content $tempJson -Raw
     $mcpJson = $mcpRaw | ConvertFrom-Json
+
+    $settingsJson = Join-Path $tempDir "settings.json"
+    if (-not (Test-Path $settingsJson)) { throw "ASSERTION FAILED: settings.json missing" }
+    $settingsContentRawA = Get-Content $settingsJson -Raw
+    if ($settingsContentRawA -notmatch '\.trash-guard') { throw "ASSERTION FAILED: settings.json should contain .trash-guard (Case A)" }
+    
+    $settingsJsonA = $settingsContentRawA | ConvertFrom-Json
+    if (-not $settingsJsonA.hooks.PreToolUse -or $settingsJsonA.hooks.PreToolUse.Count -ne 2) {
+        throw "ASSERTION FAILED: settings.json should have 2 PreToolUse hooks for trash-guard (Case A)"
+    }
+    $preBash = $settingsJsonA.hooks.PreToolUse | Where-Object { $_.matcher -eq 'Bash' }
+    $prePwsh = $settingsJsonA.hooks.PreToolUse | Where-Object { $_.matcher -eq 'PowerShell' }
+    if (-not $preBash -or -not $prePwsh) { throw "ASSERTION FAILED: Missing Bash or PowerShell matcher in PreToolUse" }
+    if ($preBash.hooks[0].timeout -ne 15 -or $prePwsh.hooks[0].timeout -ne 15) { throw "ASSERTION FAILED: PreToolUse timeout should be 15" }
+
+    $copiedHud = Join-Path $tempDir "hud/hud.mjs"
+    if (-not (Test-Path $copiedHud)) { throw "ASSERTION FAILED: hud.mjs not copied (Case A)" }
+    if (-not $settingsJsonA.statusLine) { throw "ASSERTION FAILED: settings.json should have statusLine (Case A)" }
+    if ($settingsJsonA.statusLine.command -notmatch "node .*/hud/hud.mjs") { throw "ASSERTION FAILED: statusLine command does not match expected node path" }
+
+    Write-Host "Running bootstrap into temp dir (Case B: without orca hook): $tempDir"
+    $env:ORCA_HOOK_PATH = Join-Path $mockOrcaDir "non-existent-hook.cmd"
+    $env:TRASH_GUARD_HOOK_PATH = Join-Path $mockTrashGuardDir "non-existent-pre-tool.cmd"
+    & "$PSScriptRoot\bootstrap.ps1" -DryRun:$false -SkipInstall -ClaudeDir $tempDir -ClaudeJson $tempJson
+
+    $settingsContentRawB = Get-Content $settingsJson -Raw
+    $settingsContentB = $settingsContentRawB | ConvertFrom-Json
+    if ($settingsContentRawB -match '\.trash-guard') { throw "ASSERTION FAILED: settings.json should NOT contain .trash-guard (Case B)" }
+    if ($settingsContentB.hooks.PreToolUse) { throw "ASSERTION FAILED: settings.json should not have PreToolUse if trash-guard hook is absent (Case B)" }
+    if ($settingsContentRawB -notmatch 'memorix.cmd hook') { throw "ASSERTION FAILED: settings.json should still contain memorix (Case B)" }
+
+    Write-Host "Running bootstrap into temp dir (Case C: HUD missing): $tempDir"
+    $env:HUD_PATH = "C:\non-existent-hud-path.mjs"
+    & "$PSScriptRoot\bootstrap.ps1" -DryRun:$false -SkipInstall -ClaudeDir $tempDir -ClaudeJson $tempJson
+    
+    $settingsContentRawC = Get-Content $settingsJson -Raw
+    $settingsContentC = $settingsContentRawC | ConvertFrom-Json
+    if ($settingsContentC.statusLine) { throw "ASSERTION FAILED: settings.json should not have statusLine if HUD is absent (Case C)" }
+    if ($settingsContentRawC -notmatch 'memorix.cmd hook') { throw "ASSERTION FAILED: settings.json should still contain memorix hook (Case C)" }
+    $env:HUD_PATH = $null
     if (-not $mcpJson.mcpServers.gitnexus -or -not $mcpJson.mcpServers.'company-atlassian' -or -not $mcpJson.mcpServers.context7 -or -not $mcpJson.mcpServers.glab -or -not $mcpJson.mcpServers.cloakbrowser -or -not $mcpJson.mcpServers.memorix) {
         throw "ASSERTION FAILED: Missing mcp tools in json"
     }
@@ -84,8 +135,10 @@ try {
         }
     }
     Safe-Trash $tempDir
-    Safe-Trash $tempJson
+    Safe-Trash $mockTrashGuardDir
+    Remove-Item env:TRASH_GUARD_HOOK_PATH -ErrorAction SilentlyContinue
     Safe-Trash $mockBinDir
     Safe-Trash $mockNpmDir
+    Safe-Trash $mockOrcaDir
     if ($oldPath) { $env:Path = $oldPath }
 }

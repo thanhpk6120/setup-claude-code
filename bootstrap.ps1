@@ -209,6 +209,230 @@ if (-not $DryRun) {
 }
 
 $userProfileFwd = $env:USERPROFILE.Replace('\', '/')
+$targetTrashGuard = Join-Path $env:USERPROFILE ".trash-guard"
+if (-not $DryRun) {
+    if (-not (Test-Path $targetTrashGuard)) {
+        New-Item -ItemType Directory -Path $targetTrashGuard -Force | Out-Null
+    }
+    $srcTrashGuard = Join-Path $PSScriptRoot "trash-guard"
+    if (Test-Path $srcTrashGuard) {
+        Copy-Item -Path "$srcTrashGuard\*" -Destination $targetTrashGuard -Force -Recurse
+    }
+
+    $srcHud = Join-Path $PSScriptRoot "hud"
+    $targetHudDir = Join-Path $ClaudeDir "hud"
+    if (Test-Path $srcHud) {
+        if (-not (Test-Path $targetHudDir)) {
+            New-Item -ItemType Directory -Path $targetHudDir -Force | Out-Null
+        }
+        Copy-Item -Path "$srcHud\*" -Destination $targetHudDir -Force -Recurse
+    }
+}
+
+$hudSrcFile = Join-Path $PSScriptRoot "hud/hud.mjs"
+$hudDestFile = Join-Path $ClaudeDir "hud/hud.mjs"
+$hudEffective = if ($env:HUD_PATH) { $env:HUD_PATH } else { $hudDestFile }
+$hasHud = (Test-Path $hudEffective) -or ((-not $env:HUD_PATH) -and (Test-Path $hudSrcFile))
+
+$claudeDirFwd = $ClaudeDir.Replace('\','/')
+$hudCmdJson = if ($env:HUD_PATH) { $env:HUD_PATH.Replace('\','/') } else { "$claudeDirFwd/hud/hud.mjs" }
+
+ $hudStatusLine = ""
+ if ($hasHud) {
+     $hudStatusLine = ",`n  `"statusLine`": {`n    `"type`": `"command`",`n    `"command`": `"node $hudCmdJson`"`n  }"
+ }
+
+$trashGuardCmd = if ($env:TRASH_GUARD_HOOK_PATH) { $env:TRASH_GUARD_HOOK_PATH } else { Join-Path $env:USERPROFILE ".trash-guard/claude-pre-tool.cmd" }
+$trashGuardPreToolUse = ""
+if (Test-Path $trashGuardCmd) {
+$trashGuardPreToolUse = @"
+    "PreToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "$userProfileFwd/.trash-guard/claude-pre-tool.cmd",
+            "timeout": 15
+          }
+        ]
+      },
+      {
+        "matcher": "PowerShell",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "$userProfileFwd/.trash-guard/claude-pre-tool.cmd",
+            "timeout": 15
+          }
+        ]
+      }
+    ],
+
+"@
+}
+
+$orcaHookPath = if ($env:ORCA_HOOK_PATH) { $env:ORCA_HOOK_PATH } else { Join-Path $env:USERPROFILE ".orca/agent-hooks/claude-hook.cmd" }
+$hasOrca = Test-Path $orcaHookPath
+
+$orcaSessionStart = ""
+$orcaPostToolUse = ""
+$orcaUserPromptSubmit = ""
+$orcaStop = ""
+$orcaStopFailure = ""
+$orcaSubagentStart = ""
+$orcaSubagentStop = ""
+$orcaTeammateIdle = ""
+$orcaPostToolUseFailure = ""
+$orcaPermissionRequest = ""
+
+if ($hasOrca) {
+$orcaSessionStart = @"
+,
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "$userProfileFwd/.orca/agent-hooks/claude-hook.cmd",
+            "timeout": 60
+          }
+        ]
+      }
+"@
+
+$orcaPostToolUse = @"
+,
+      {
+        "matcher": "*",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "$userProfileFwd/.orca/agent-hooks/claude-hook.cmd",
+            "timeout": 60
+          }
+        ]
+      }
+"@
+
+$orcaUserPromptSubmit = @"
+    "UserPromptSubmit": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "$userProfileFwd/.orca/agent-hooks/claude-hook.cmd",
+            "timeout": 60
+          }
+        ]
+      }
+    ],
+
+"@
+
+$orcaStop = @"
+,
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "$userProfileFwd/.orca/agent-hooks/claude-hook.cmd",
+            "timeout": 60
+          }
+        ]
+      }
+"@
+
+$orcaStopFailure = @"
+    "StopFailure": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "$userProfileFwd/.orca/agent-hooks/claude-hook.cmd",
+            "timeout": 60
+          }
+        ]
+      }
+    ],
+
+"@
+
+$orcaSubagentStart = @"
+    "SubagentStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "$userProfileFwd/.orca/agent-hooks/claude-hook.cmd",
+            "timeout": 60
+          }
+        ]
+      }
+    ],
+
+"@
+
+$orcaSubagentStop = @"
+    "SubagentStop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "$userProfileFwd/.orca/agent-hooks/claude-hook.cmd",
+            "timeout": 60
+          }
+        ]
+      }
+    ],
+
+"@
+
+$orcaTeammateIdle = @"
+    "TeammateIdle": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "$userProfileFwd/.orca/agent-hooks/claude-hook.cmd",
+            "timeout": 60
+          }
+        ]
+      }
+    ],
+
+"@
+
+$orcaPostToolUseFailure = @"
+    "PostToolUseFailure": [
+      {
+        "matcher": "*",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "$userProfileFwd/.orca/agent-hooks/claude-hook.cmd",
+            "timeout": 60
+          }
+        ]
+      }
+    ],
+
+"@
+
+$orcaPermissionRequest = @"
+    "PermissionRequest": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "$userProfileFwd/.orca/agent-hooks/claude-hook.cmd",
+            "timeout": 60
+          }
+        ]
+      }
+    ],
+
+"@
+}
 $settingsTemplate = @"
 {
   "env": {
@@ -244,16 +468,7 @@ $settingsTemplate = @"
             "timeout": 60
           }
         ]
-      },
-      {
-        "hooks": [
-          {
-            "type": "command",
-            "command": "$userProfileFwd/.orca/agent-hooks/claude-hook.cmd",
-            "timeout": 60
-          }
-        ]
-      }
+      }$orcaSessionStart
     ],
     "PostToolUse": [
       {
@@ -264,30 +479,9 @@ $settingsTemplate = @"
             "timeout": 60
           }
         ]
-      },
-      {
-        "matcher": "*",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "$userProfileFwd/.orca/agent-hooks/claude-hook.cmd",
-            "timeout": 60
-          }
-        ]
-      }
+      }$orcaPostToolUse
     ],
-    "UserPromptSubmit": [
-      {
-        "hooks": [
-          {
-            "type": "command",
-            "command": "$userProfileFwd/.orca/agent-hooks/claude-hook.cmd",
-            "timeout": 60
-          }
-        ]
-      }
-    ],
-    "PreCompact": [
+$orcaUserPromptSubmit    "PreCompact": [
       {
         "hooks": [
           {
@@ -307,107 +501,10 @@ $settingsTemplate = @"
             "timeout": 60
           }
         ]
-      },
-      {
-        "hooks": [
-          {
-            "type": "command",
-            "command": "$userProfileFwd/.orca/agent-hooks/claude-hook.cmd",
-            "timeout": 60
-          }
-        ]
-      }
+      }$orcaStop
     ],
-    "StopFailure": [
-      {
-        "hooks": [
-          {
-            "type": "command",
-            "command": "$userProfileFwd/.orca/agent-hooks/claude-hook.cmd",
-            "timeout": 60
-          }
-        ]
-      }
-    ],
-    "SubagentStart": [
-      {
-        "hooks": [
-          {
-            "type": "command",
-            "command": "$userProfileFwd/.orca/agent-hooks/claude-hook.cmd",
-            "timeout": 60
-          }
-        ]
-      }
-    ],
-    "SubagentStop": [
-      {
-        "hooks": [
-          {
-            "type": "command",
-            "command": "$userProfileFwd/.orca/agent-hooks/claude-hook.cmd",
-            "timeout": 60
-          }
-        ]
-      }
-    ],
-    "TeammateIdle": [
-      {
-        "hooks": [
-          {
-            "type": "command",
-            "command": "$userProfileFwd/.orca/agent-hooks/claude-hook.cmd",
-            "timeout": 60
-          }
-        ]
-      }
-    ],
-    "PreToolUse": [
-      {
-        "matcher": "Bash",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "$userProfileFwd/.trash-guard/claude-pre-tool.cmd",
-            "timeout": 15
-          }
-        ]
-      },
-      {
-        "matcher": "PowerShell",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "$userProfileFwd/.trash-guard/claude-pre-tool.cmd",
-            "timeout": 15
-          }
-        ]
-      }
-    ],
-    "PostToolUseFailure": [
-      {
-        "matcher": "*",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "$userProfileFwd/.orca/agent-hooks/claude-hook.cmd",
-            "timeout": 60
-          }
-        ]
-      }
-    ],
-    "PermissionRequest": [
-      {
-        "hooks": [
-          {
-            "type": "command",
-            "command": "$userProfileFwd/.orca/agent-hooks/claude-hook.cmd",
-            "timeout": 60
-          }
-        ]
-      }
-    ],
-    "PostCompact": [
+$orcaStopFailure$orcaSubagentStart$orcaSubagentStop$orcaTeammateIdle$trashGuardPreToolUse
+$orcaPostToolUseFailure$orcaPermissionRequest    "PostCompact": [
       {
         "hooks": [
           {
@@ -430,11 +527,7 @@ $settingsTemplate = @"
       }
     ]
   },
-  "enableWorkflows": true,
-  "statusLine": {
-    "type": "command",
-    "command": "node $userProfileFwd/.claude/hud/omc-hud.mjs"
-  },
+  "enableWorkflows": true$hudStatusLine,
   "autoUpdatesChannel": "latest",
   "skipDangerousModePermissionPrompt": true,
   "theme": "dark",
