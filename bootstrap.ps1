@@ -114,7 +114,7 @@ function Get-EnvOrPrompt {
     }
 }
 
-$aiBaseUrl = Get-EnvOrPrompt -EnvName "AI_BASE_URL" -Prompt "AI Base URL" -Default "https://openrouter.ai/api/v1"
+$aiBaseUrl = Get-EnvOrPrompt -EnvName "AI_BASE_URL" -Prompt "AI Base URL" -Default "http://localhost:20128/v1"
 $aiKey     = Get-EnvOrPrompt -EnvName "AI_API_KEY" -Prompt "AI API Key"
 $jiraUrl   = Get-EnvOrPrompt -EnvName "JIRA_URL" -Prompt "Jira URL" -Default "https://jira.cybertech.vn"
 $jiraToken = Get-EnvOrPrompt -EnvName "JIRA_PERSONAL_TOKEN" -Prompt "Jira Personal Token" -Default "YOUR_JIRA_PERSONAL_TOKEN"
@@ -139,6 +139,7 @@ if (-not $DryRun -and $ClaudeDir -eq "$env:USERPROFILE\.claude") {
     Write-Host "==> Setting global environment variables for Claude Code..." -ForegroundColor Cyan
     [Environment]::SetEnvironmentVariable("ANTHROPIC_BASE_URL", $aiBaseUrl, "User")
     [Environment]::SetEnvironmentVariable("ANTHROPIC_API_KEY", $aiKey, "User")
+    [Environment]::SetEnvironmentVariable("ANTHROPIC_AUTH_TOKEN", $aiKey, "User")
 }
 
 Write-Host "==> Ensuring directory $ClaudeDir exists..." -ForegroundColor Cyan
@@ -203,7 +204,249 @@ if (-not $DryRun) {
     }
     if (-not $existing) { $existing = [PSCustomObject]@{} }
     $existing | Add-Member -MemberType NoteProperty -Name 'mcpServers' -Value $parsedMcp -Force
-    $existing | ConvertTo-Json -Depth 10 | Set-Content -Path $ClaudeJson -Encoding UTF8
+    $jsonContent = $existing | ConvertTo-Json -Depth 10
+    [System.IO.File]::WriteAllText($ClaudeJson, $jsonContent, [System.Text.UTF8Encoding]::new($false))
+}
+
+$userProfileFwd = $env:USERPROFILE.Replace('\', '/')
+$settingsTemplate = @"
+{
+  "env": {
+    "ANTHROPIC_BASE_URL": "$aiBaseUrl",
+    "ANTHROPIC_AUTH_TOKEN": "$aiKey",
+    "ANTHROPIC_DEFAULT_FABLE_MODEL": "claude-fable-5",
+    "ANTHROPIC_DEFAULT_OPUS_MODEL": "claude-opus-5",
+    "ANTHROPIC_DEFAULT_SONNET_MODEL": "claude-sonnet-5",
+    "ANTHROPIC_DEFAULT_HAIKU_MODEL": "claude-haiku-4-5-20251001",
+    "ANTHROPIC_MODEL": "claude-sonnet-5",
+    "CLAUDE_CODE_SUBAGENT_MODEL": "sonnet[1m]",
+    "API_TIMEOUT_MS": "3000000",
+    "CLAUDE_DANGEROUSLY_SKIP_PERMISSIONS": "1",
+    "CLAUDE_CODE_DISABLE_EXPERIMENTAL_BETAS": "1",
+    "CLAUDE_CODE_NO_FLICKER": "1",
+    "CLAUDE_CODE_USE_POWERSHELL_TOOL": "1",
+    "MCP_TIMEOUT": "120000",
+    "MCP_TOOL_TIMEOUT": "120000"
+  },
+  "permissions": {
+    "allow": [],
+    "deny": [],
+    "defaultMode": "bypassPermissions"
+  },
+  "model": "sonnet[1m]",
+  "hooks": {
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "memorix.cmd hook",
+            "timeout": 60
+          }
+        ]
+      },
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "$userProfileFwd/.orca/agent-hooks/claude-hook.cmd",
+            "timeout": 60
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "memorix.cmd hook",
+            "timeout": 60
+          }
+        ]
+      },
+      {
+        "matcher": "*",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "$userProfileFwd/.orca/agent-hooks/claude-hook.cmd",
+            "timeout": 60
+          }
+        ]
+      }
+    ],
+    "UserPromptSubmit": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "$userProfileFwd/.orca/agent-hooks/claude-hook.cmd",
+            "timeout": 60
+          }
+        ]
+      }
+    ],
+    "PreCompact": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "memorix.cmd hook",
+            "timeout": 60
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "memorix.cmd hook",
+            "timeout": 60
+          }
+        ]
+      },
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "$userProfileFwd/.orca/agent-hooks/claude-hook.cmd",
+            "timeout": 60
+          }
+        ]
+      }
+    ],
+    "StopFailure": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "$userProfileFwd/.orca/agent-hooks/claude-hook.cmd",
+            "timeout": 60
+          }
+        ]
+      }
+    ],
+    "SubagentStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "$userProfileFwd/.orca/agent-hooks/claude-hook.cmd",
+            "timeout": 60
+          }
+        ]
+      }
+    ],
+    "SubagentStop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "$userProfileFwd/.orca/agent-hooks/claude-hook.cmd",
+            "timeout": 60
+          }
+        ]
+      }
+    ],
+    "TeammateIdle": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "$userProfileFwd/.orca/agent-hooks/claude-hook.cmd",
+            "timeout": 60
+          }
+        ]
+      }
+    ],
+    "PreToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "$userProfileFwd/.trash-guard/claude-pre-tool.cmd",
+            "timeout": 15
+          }
+        ]
+      },
+      {
+        "matcher": "PowerShell",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "$userProfileFwd/.trash-guard/claude-pre-tool.cmd",
+            "timeout": 15
+          }
+        ]
+      }
+    ],
+    "PostToolUseFailure": [
+      {
+        "matcher": "*",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "$userProfileFwd/.orca/agent-hooks/claude-hook.cmd",
+            "timeout": 60
+          }
+        ]
+      }
+    ],
+    "PermissionRequest": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "$userProfileFwd/.orca/agent-hooks/claude-hook.cmd",
+            "timeout": 60
+          }
+        ]
+      }
+    ],
+    "PostCompact": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "memorix.cmd hook",
+            "timeout": 60
+          }
+        ]
+      }
+    ],
+    "SessionEnd": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "memorix.cmd hook",
+            "timeout": 60
+          }
+        ]
+      }
+    ]
+  },
+  "enableWorkflows": true,
+  "statusLine": {
+    "type": "command",
+    "command": "node $userProfileFwd/.claude/hud/omc-hud.mjs"
+  },
+  "autoUpdatesChannel": "latest",
+  "skipDangerousModePermissionPrompt": true,
+  "theme": "dark",
+  "version": 1,
+  "autoCompactEnabled": false
+}
+"@
+
+Write-Host "==> Writing settings.json to $ClaudeDir..." -ForegroundColor Cyan
+if (-not $DryRun) {
+    $settingsPath = Join-Path $ClaudeDir "settings.json"
+    [System.IO.File]::WriteAllText($settingsPath, $settingsTemplate, [System.Text.UTF8Encoding]::new($false))
 }
 
 Write-Host "==> Copying static files and skills to $ClaudeDir..." -ForegroundColor Cyan

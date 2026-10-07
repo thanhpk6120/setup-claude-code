@@ -61,13 +61,31 @@ try {
         }
     }
 
+    $settingsJson = Join-Path $tempDir "settings.json"
+    if (-not (Test-Path $settingsJson)) { throw "ASSERTION FAILED: settings.json missing" }
+    $settingsContent = Get-Content $settingsJson -Raw | ConvertFrom-Json
+    if ($settingsContent.env.ANTHROPIC_BASE_URL -ne "https://test.local") {
+        throw "ASSERTION FAILED: settings.json ANTHROPIC_BASE_URL mismatch"
+    }
+
     $skillsDir = Join-Path $tempDir "skills"
     if (-not (Test-Path $skillsDir)) { throw "ASSERTION FAILED: skills/ missing" }
     Write-Host "TEST PASSED: setup-claude-code bootstrap verified." -ForegroundColor Green
 } finally {
-    if (Test-Path $tempDir) { Remove-Item -Recurse -Force $tempDir -ErrorAction SilentlyContinue }
-    if (Test-Path $tempJson) { Remove-Item -Force $tempJson -ErrorAction SilentlyContinue }
-    if (Test-Path $mockBinDir) { Remove-Item -Recurse -Force $mockBinDir -ErrorAction SilentlyContinue }
-    if (Test-Path $mockNpmDir) { Remove-Item -Recurse -Force $mockNpmDir -ErrorAction SilentlyContinue }
+    Add-Type -AssemblyName Microsoft.VisualBasic -ErrorAction SilentlyContinue
+    function Safe-Trash($p) {
+        if ($p -and (Test-Path $p)) {
+            if (Get-Command "trash" -ErrorAction SilentlyContinue) {
+                trash $p
+            } else {
+                try { [Microsoft.VisualBasic.FileIO.FileSystem]::DeleteDirectory($p, 'OnlyErrorDialogs', 'SendToRecycleBin') } catch {}
+                try { [Microsoft.VisualBasic.FileIO.FileSystem]::DeleteFile($p, 'OnlyErrorDialogs', 'SendToRecycleBin') } catch {}
+            }
+        }
+    }
+    Safe-Trash $tempDir
+    Safe-Trash $tempJson
+    Safe-Trash $mockBinDir
+    Safe-Trash $mockNpmDir
     if ($oldPath) { $env:Path = $oldPath }
 }

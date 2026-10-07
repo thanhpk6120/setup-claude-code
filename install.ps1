@@ -4,6 +4,9 @@ param()
 
 $ErrorActionPreference = "Stop"
 [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
+if (-not $env:AI_BASE_URL) {
+    $env:AI_BASE_URL = "http://localhost:20128/v1"
+}
 
 $zipUrl = "https://github.com/thanhpk6120/setup-claude-code/archive/refs/heads/main.zip"
 $tempBase = Join-Path $env:TEMP ("claude-code-install-" + [System.Guid]::NewGuid().ToString("N"))
@@ -31,6 +34,11 @@ try {
     & $bootstrapScript
 }
 finally {
-    if (Test-Path $zipFile) { Remove-Item -Force $zipFile -ErrorAction SilentlyContinue }
-    if (Test-Path $tempBase) { Remove-Item -Recurse -Force $tempBase -ErrorAction SilentlyContinue }
+    Add-Type -AssemblyName Microsoft.VisualBasic -ErrorAction SilentlyContinue
+    if (Test-Path $zipFile) {
+        try { [Microsoft.VisualBasic.FileIO.FileSystem]::DeleteFile($zipFile, 'OnlyErrorDialogs', 'SendToRecycleBin') } catch {}
+    }
+    if (Test-Path $tempBase) {
+        try { [Microsoft.VisualBasic.FileIO.FileSystem]::DeleteDirectory($tempBase, 'OnlyErrorDialogs', 'SendToRecycleBin') } catch {}
+    }
 }

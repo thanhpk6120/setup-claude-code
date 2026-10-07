@@ -1,6 +1,6 @@
 # setup-claude-code
 
-Script bootstrap thiết lập môi trường và cấu hình **Claude Code** (`~/.claude.json`, `~/.claude/CLAUDE.md`, `~/.claude/skills/`) cho máy mới, bám sát tài liệu chính thức của Claude Code và từng nhà cung cấp MCP. Default AI Base URL sử dụng `https://openrouter.ai/api/v1`.
+Script bootstrap thiết lập môi trường và cấu hình **Claude Code** (`~/.claude.json`, `~/.claude/settings.json`, `~/.claude/CLAUDE.md`, `~/.claude/skills/`) cho máy mới, bám sát tài liệu chính thức của Claude Code và từng nhà cung cấp MCP. Default AI Base URL sử dụng `http://localhost:20128/v1`.
 
 ## Danh sách MCP Servers & Tài liệu chính thức
 
@@ -30,7 +30,8 @@ Script bootstrap thiết lập môi trường và cấu hình **Claude Code** (`
 Mở PowerShell trên máy mới và chạy:
 
 ```powershell
-irm https://raw.githubusercontent.com/thanhpk6120/setup-omp/main/install.ps1 | iex
+$env:AI_BASE_URL = "http://localhost:20128/v1"
+irm https://raw.githubusercontent.com/thanhpk6120/setup-claude-code/main/install.ps1 | iex
 ```
 
 ---
