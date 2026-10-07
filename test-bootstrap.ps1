@@ -51,8 +51,8 @@ try {
     $claudeMd = Join-Path $tempDir "CLAUDE.md"
     if (-not (Test-Path $claudeMd)) { throw "ASSERTION FAILED: CLAUDE.md missing" }
     $claudeMdContent = Get-Content $claudeMd -Raw
-    if ($claudeMdContent -notmatch "Root Project Agent Guide" -or $claudeMdContent -notmatch "Pre-flight Task Complexity" -or $claudeMdContent -notmatch "Global Rules") {
-        throw "ASSERTION FAILED: CLAUDE.md missing markers from old source files"
+    if ($claudeMdContent -notmatch "Pre-flight Task Complexity" -or $claudeMdContent -notmatch "Global Rules") {
+        throw "ASSERTION FAILED: CLAUDE.md missing markers from AGENTS.md"
     }
 
     foreach ($oldFile in @("SYSTEM.md", "AGENTS.md", "RULES.md")) {

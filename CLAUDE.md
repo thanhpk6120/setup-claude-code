@@ -1,323 +1,39 @@
-<!-- HOWTO: HƯỚNG DẪN KHỞI TẠO DỰ ÁN MỚI TỪ TEMPLATE
-1. Copy file này ra thư mục gốc của dự án mới và đổi tên thành `AGENTS.md`.
-2. Tìm và thay thế tất cả các placeholder dạng `{{PLACEHOLDER_NAME}}` bằng thông tin thực tế của dự án.
-3. Xóa bỏ toàn bộ các block comment <!-- HOWTO --> này trước khi commit.
--->
+# Global Rules
 
-> ⚠️ **TEMPLATE / BẢN MẪU:** File này là tài liệu mẫu dùng để tạo `AGENTS.md` cho các dự án mới.
-> Không sử dụng trực tiếp file này làm hướng dẫn agent khi chưa điền thông tin cụ thể.
+> **[CRITICAL INSTRUCTION: READ TO THE END. DO NOT IGNORE ANY RULE. DO NOT TRUNCATE CODE (NO `...` PLACEHOLDERS). FULL COMPLIANCE REQUIRED.]**
+> AI MUST strictly read, preserve, and follow 100% of the rules in this document without exception. NEVER truncate, omit, skip, or summarize away any rule. Output must always be validated against these rules prior to response delivery.
+> **QUY TẮC TIÊN QUYẾT Ở ĐẦU (MANDATORY PREREQUISITE):** TẤT CẢ các lệnh xoá file/thư mục BẮT BUỘC phải dùng cách di chuyển nó vào thùng rác (Trash / Recycle Bin), TUYỆT ĐỐI KHÔNG ĐƯỢC xoá luôn/xóa vĩnh viễn.
 
----
+## 0. PRECEDENCE, DELEGATION, SKILLS & PLUGINS/MCP [MANDATORY PRE-FLIGHT — NEVER SKIP]
 
-# AGENTS.md — Root Project Agent Guide
+**[CRITICAL INVARIANT]** You MUST explicitly analyze the incoming request upfront to determine task complexity, applicable Skills, and applicable Plugins/MCP tools. Decide whether to spawn specialized subagents or use the main agent directly. You CANNOT skip this step. 
+- **PRECEDENCE RULE:** Delegation, Skill, and Plugin/MCP Orchestration rules ALWAYS OVERRIDE "Think Before Coding", "Simplicity", and "Goal-Driven". Whenever a task involves ≥2 steps, multi-file scope, or investigation, delegation is MANDATORY. "Simplicity" and "Goal-Driven" apply *within* the subagent's scope, NOT as an excuse for the Main Agent to do everything directly.
+- **OUTPUT PREFIX (MANDATORY BEFORE ANY TOOL CALL):** 
+  The Main Agent MUST output a reasoning line before calling ANY tool:
+  `[Pre-flight] Tier: 1/2/3 | Skills: <Skill name(s) or None> | Plugins/MCP: <Plugin/MCP tool(s) or None> | Rationale: <reason> | Action: <Direct / Single Subagent / Parallel Subagents>`
 
-## 0. File metadata [REQUIRED]
+### Mandatory Tool & Skill Resolution:
+- **Mandatory Skills Resolution:** Scan and apply matching skills from `skills/*/SKILL.md` (e.g. `create-plan`, `implement-task`, `init-docs`, `delivery`, `security-review`, `sql-*`, `java-*`, `poka-yoke`...). Never invent ad-hoc procedures when an established skill exists.
+- **Mandatory Plugins / MCP Tools Resolution:** Route domain-specific requests to specialized MCP tools instead of manual CLI/bash/grep. Luôn kiểm tra danh sách MCP tools đang có trong môi trường để ưu tiên sử dụng đúng công cụ cho domain (ví dụ: công cụ cho code graph/symbol, project memory, browser automation, issue tracking, docs, tra cứu thư viện...). *NEVER use generic `bash`/`grep`/`curl` if a dedicated Plugin/MCP handles the domain.*
 
-```yaml
-project: {{PROJECT_NAME}}
-doc_version: 1.0.0
-updated_at: {{YYYY-MM-DD}}
-owner: {{PROJECT_OWNER}}
-docs_repo: {{DOCS_GIT_REPO_URL}}
-ticket_prefix: {{TICKET_PREFIX}}
-language_for_ai_replies: {{Vietnamese | English}}
-```
+- **Delegation logic:**
+  - Prefer delegating to specialized subagents (`scout`, `task`, `reviewer`, `docs-*`, `dely-*`) in parallel batches via the `task` tool whenever work has 2+ steps, multi-file scope, or distinct inspection/implementation slices.
+  - Do not sequentially inspect > 1 file or serialize independent tasks in the main agent. Fan out concurrently to minimize latency, ensure accuracy, and save main context window.
+  - Main agent acts primarily as Dispatcher & Integrator.
 
----
+## 1. Global Rules
+- Always respond in Vietnamese (except code identifiers, error strings, shell commands, URLs).
+- Never commit, branch, or open PRs unless explicitly requested.
+- **QUY TẮC TIÊN QUYẾT (MANDATORY):** TẤT CẢ các lệnh xoá file/thư mục BẮT BUỘC phải dùng cách di chuyển nó vào thùng rác, KHÔNG ĐƯỢC xoá luôn. Never permanently delete user files. Clean temporary files only by moving them to the Recycle Bin / Trash.
+- Create/update files only in the current workspace; ask before editing outside it.
+- Do not stop or downgrade scope/model/agents solely for cost warnings. Continue when technically possible; report platform blocks.
+- Disclose failed commands/tests and incomplete verification. Never claim unverified success.
+- Do not refactor, reformat, or improve unrelated code. Match project style.
+- Every changed line must trace directly to the user's request.
+- MANDATORY RULE COMPLIANCE: AI MUST strictly follow ALL rules in AGENTS.md and RULES.md without exception. NEVER skip, omit, or downgrade any rule. ALWAYS verify final output against every applicable rule for compliance before responding.
 
-## 1. Project overview [REQUIRED]
-
-**{{PROJECT_NAME}}** là {{Mô tả ngắn gọn về hệ thống / mục tiêu dự án}}.
-
-**Business goal:** {{Mục tiêu kinh doanh chính của hệ thống}}.
-
-**Main capabilities:**
-- {{Năng lực 1}}
-- {{Năng lực 2}}
-- {{Năng lực 3}}
-- {{Năng lực 4}}
-
-**Customer / stakeholders:** {{Danh sách khách hàng, người dùng cuối, đội ngũ vận hành, bên liên quan}}.
-
-**Out of scope for this workspace:** {{Những hệ thống, module hoặc dịch vụ bên ngoài nằm ngoài phạm vi workspace này}}.
 
 ---
-
-## 2. Session start protocol [REQUIRED]
-
-Đọc theo đúng thứ tự này **trước khi** lập kế hoạch, viết code, kiểm thử hoặc review:
-
-1. Chạy `git pull` bên trong thư mục `docs/`.
-2. File này (`AGENTS.md`).
-3. `docs/README.md` — quy trình spec-driven workflow.
-4. `docs/ARCHITECTURE.md` — kiến trúc hệ thống, cổng mạng, giao tiếp liên service.
-5. `docs/specs/<domain>.md` — đặc tả nghiệp vụ liên quan đến task.
-6. `docs/rules/<rule>.md` — quy tắc làm việc tương ứng với loại task.
-7. `docs/DESIGN.md` — nếu task có thay đổi UI/UX.
-8. `docs/features/<TICKET-ID>/` — nếu task gắn với ticket cụ thể.
-
-**Không viết code trước khi hoàn thành các bước 1–6.**
-
----
-
-## 3. Workspace layout [REQUIRED]
-
-<!-- HOWTO: Liệt kê cấu trúc thư mục workspace và các service thực tế kèm công nghệ/port -->
-```text
-{{WORKSPACE_ROOT}}/                  ← parent folder (workspace root, NOT a git repo)
-├── AGENTS.md                        ← file hướng dẫn agent gốc
-├── docs/                            ← docs repo (git riêng) — nguồn chân lý (source of truth)
-│   ├── README.md                    ← workflow đặc tả
-│   ├── ARCHITECTURE.md              ← kiến trúc tổng thể
-│   ├── DESIGN.md                    ← thiết kế UI/UX
-│   ├── COMMANDS.md                  ← catalog lệnh tắt
-│   ├── specs/                       ← đặc tả nghiệp vụ từng domain
-│   ├── rules/                       ← quy tắc vận hành AI agent
-│   ├── features/                    ← theo dõi theo ticket ({{TICKET_PREFIX}}-XXXX)
-│   └── skills/                      ← domain skills
-├── {{service-1-dir}}/               ← {{Tech Stack & Port / Role}}
-├── {{service-2-dir}}/               ← {{Tech Stack & Port / Role}}
-└── {{service-3-dir}}/               ← {{Tech Stack & Port / Role}}
-```
-
-**Naming rule [REQUIRED]:** Tên thư mục cục bộ là **tên canonical** dùng xuyên suốt trong tài liệu, plan, task và report. Không gọi service bằng tên git repo hay title trong README. Khi có xung đột, **mã nguồn thực tế thắng** và phải ghi nhận vào `docs/ARCHITECTURE.md`.
-
----
-
-## 4. Service registry [REQUIRED]
-
-### 4.1 Canonical Service Tags (`{{SERVICE_TAGS}}`)
-`{{service-key-1}}`, `{{service-key-2}}`, `{{service-key-3}}`
-
-### 4.2 Service Registry Table
-| service-key (canonical) | Repo path | Git repository | Role | Runtime / port | Datastore |
-|---|---|---|---|---|---|
-| `{{service-key-1}}` | `./{{service-key-1}}` | `{{GIT_URL_SERVICE_1}}` | {{Mô tả vai trò service 1}} | {{Runtime / Framework / Port}} | {{Datastore}} |
-| `{{service-key-2}}` | `./{{service-key-2}}` | `{{GIT_URL_SERVICE_2}}` | {{Mô tả vai trò service 2}} | {{Runtime / Framework / Port}} | {{Datastore}} |
-| `{{service-key-3}}` | `./{{service-key-3}}` | `{{GIT_URL_SERVICE_3}}` | {{Mô tả vai trò service 3}} | {{Runtime / Framework / Port}} | {{Datastore}} |
-| `docs` | `./docs` | `{{DOCS_GIT_REPO_URL}}` | Documentation source of truth | Markdown | — |
-
-**Hạ tầng dùng chung:**
-- Cơ sở dữ liệu: {{Databases, ví dụ: PostgreSQL, MongoDB, MySQL}}
-- Lưu trữ file/đối tượng: {{Object Storage, ví dụ: MinIO, AWS S3}}
-- Hàng đợi / Message broker: {{Message Broker, ví dụ: Kafka, RabbitMQ, SQS}}
-- Cache: {{Cache, ví dụ: Redis, Caffeine}}
-- Tích hợp chuyên biệt: {{Chuyên biệt, ví dụ: HSM, Gateway, Identity Provider}}
-
-### 4.3 Quy tắc định vị service [REQUIRED]
-1. Service mục tiêu phải được **chỉ định rõ ràng** theo thứ tự ưu tiên: `plan.md` front-matter `service:` → cột `Service` trong `tasks.md` → chỉ thị trực tiếp từ người dùng.
-2. Tuyệt đối không đoán service bằng grep/glob.
-3. Chỉ thao tác trên các file thuộc `Repo path` được ánh xạ từ bảng trên.
-4. Nếu chưa xác định được service hoặc task liên quan nhiều repo mà chưa được khai báo: **DỪNG LẠI VÀ HỎI**.
-
----
-
-## 5. Tech stack [REQUIRED]
-
-| Service | Framework / version | Language / version | Auth | Build & run |
-|---|---|---|---|---|
-| `{{service-key-1}}` | {{Framework / Version}} | {{Language / Version}} | {{Auth Mechanism}} | `{{BUILD_CMD}}` / `{{RUN_CMD}}` |
-| `{{service-key-2}}` | {{Framework / Version}} | {{Language / Version}} | {{Auth Mechanism}} | `{{BUILD_CMD}}` / `{{RUN_CMD}}` |
-| `{{service-key-3}}` | {{Framework / Version}} | {{Language / Version}} | {{Auth Mechanism}} | `{{BUILD_CMD}}` / `{{RUN_CMD}}` |
-
----
-
-## 6. Source-of-truth map [REQUIRED]
-
-| Vấn đề cần tìm / thay đổi | Tài liệu cần đọc trước |
-|---|---|
-| Kiến trúc, dịch vụ, tích hợp ngoại vi | `docs/ARCHITECTURE.md` |
-| Đặc tả chi tiết nghiệp vụ domain A | `docs/specs/{{domain-a}}.md` |
-| Đặc tả chi tiết nghiệp vụ domain B | `docs/specs/{{domain-b}}.md` |
-| Giao diện, UI component, theme | `docs/DESIGN.md` |
-| Ticket hoặc tính năng cụ thể | `docs/features/<TICKET-ID>/` |
-| Quy tắc vận hành của Agent | `docs/rules/*.md` |
-| Hướng dẫn thực thi kỹ năng Agent | `docs/skills/<skill-name>/SKILL.md` |
-
----
-
-## 7. Business domain map
-
-| # | Domain | Backend module / service | Frontend feature | Spec file |
-|---|---|---|---|---|
-| 1 | {{Tên nghiệp vụ 1}} | `{{backend-service-1}}` | `{{frontend-service-1}}` | `docs/specs/{{domain-1}}.md` |
-| 2 | {{Tên nghiệp vụ 2}} | `{{backend-service-2}}` | `{{frontend-service-2}}` | `docs/specs/{{domain-2}}.md` |
-| 3 | {{Tên nghiệp vụ 3}} | `{{backend-service-3}}` | `{{frontend-service-3}}` | `docs/specs/{{domain-3}}.md` |
-
----
-
-## 8. Feature workflow [REQUIRED]
-
-### 8.1 Feature folder model
-
-Mỗi hạng mục công việc được quản lý tại `docs/features/<TICKET-ID>/` (ví dụ `{{TICKET_PREFIX}}-1024/`):
-
-| File | Owner | Nội dung |
-|---|---|---|
-| `expect.md` | BA | Yêu cầu nghiệp vụ, actors, tiêu chí nghiệm thu (acceptance criteria), out-of-scope |
-| `plan.md` | DEV + AI | Thiết kế kỹ thuật; bắt buộc duyệt Gate 1 trước khi viết code |
-| `tasks.md` | DEV + AI | Danh sách checklist công việc theo service, có cột `Service` và trạng thái |
-| `testcase.md` | AI | Kịch bản kiểm thử sinh từ `expect.md` |
-| `impact.md` | AI + DEV | Phạm vi ảnh hưởng, rủi ro, danh sách kiểm tra an toàn |
-| `report.md` | AI | Danh sách file thay đổi thực tế và kết quả kiểm thử thực tế |
-| `deploy.md` | DEV | Hướng dẫn cấu hình/DB/deployment nếu có thay đổi hạ tầng |
-
-### 8.2 Lifecycle and gates
-
-```text
-draft ──► plan-review ──► approved ──► in_progress ──► testing ──► done
-                                              │
-                                              └──► blocked / cancelled
-```
-
-- **Gate 1 — Plan review:** `plan.md` phải được DEV tự kiểm tra và TechLead duyệt trước khi code.
-- **Gate 2 — Docs update review:** Thay đổi tại `docs/specs/` và `docs/ARCHITECTURE.md` phải được TechLead duyệt trước khi merge.
-
-### 8.3 Front matter của tasks.md
-
-```md
----
-feature: {{TICKET_PREFIX}}-0000
-service: {{service-key}}
-status: in_progress
-owner: AI
-updated_at: {{YYYY-MM-DD}}
----
-```
-
----
-
-## 9. Rule index [REQUIRED]
-
-| Rule file | Khi nào chạy | Input | Output |
-|---|---|---|---|
-| `docs/rules/init-docs.md` | Khởi tạo hoặc đồng bộ lại toàn bộ docs | Mã nguồn toàn bộ các service | `ARCHITECTURE.md`, `DESIGN.md`, `specs/*.md` |
-| `docs/rules/create-plan.md` | Đã có `expect.md` | `expect.md` + base docs | `plan.md`, `tasks.md` |
-| `docs/rules/implement-task.md` | Plan đã duyệt (Gate 1) | `tasks.md` | Code + `report.md` + `deploy.md` + docs diff |
-| `docs/rules/create-testcase.md` | Sau plan, trước khi code | `expect.md` | `testcase.md` |
-
----
-
-## 10. Service quick rules [REQUIRED]
-
-### 10.1 Layer Read Order (`{{LAYER_READ_ORDER}}`)
-<!-- HOWTO: Khai báo thứ tự đọc code theo từng loại framework/techstack có trong dự án -->
-- **Spring Boot (Java):** `controller` / `grpc` → `service` → `repository`/`dao` → `entity`/`model` → `dto` → `config`
-- **Node.js / Express / NestJS:** `controller` / `resolver` → `service` → `repository` / `entity` → `dto` / `interface` → `config`
-- **React (TypeScript/JavaScript):** `router` → `view`/`page` → `component` → `store`/`slice`/`thunk` → `api service`
-- **Angular (TypeScript):** `routing-module` → `page`/`component` → `service` → `model`
-- **Vue (TypeScript/JavaScript):** `router` → `views`/`pages` → `components` → `stores`/`pinia` → `api`
-
-### 10.2 Service Quick Matrix & Verification Commands (`{{VERIFY_COMMANDS}}`)
-
-| Service | Thứ tự đọc source code (`{{LAYER_READ_ORDER}}`) | Lệnh xác thực (`{{VERIFY_COMMANDS}}`) | Ràng buộc kỹ thuật |
-|---|---|---|---|
-| `{{service-key-1}}` | `{{controller}}` → `{{service}}` → `{{repository}}` → `{{model}}` → `{{config}}` | `{{mvn clean test / npm test}}` | {{Ràng buộc kiến trúc, security, không code logic ở controller}} |
-| `{{service-key-2}}` | `{{router}}` → `{{views}}` → `{{components}}` → `{{store}}` → `{{api}}` | `{{npm run build / npm test}}` | {{Quy chuẩn UI/UX, xử lý state/error bắt buộc}} |
-| `{{service-key-3}}` | `{{grpc/service}}` → `{{worker}}` → `{{client}}` → `{{config}}` | `{{mvn clean test / pytest / go test}}` | {{Ràng buộc về hiệu năng, timeout, transaction}} |
-
-### 10.3 Deploy & release commands (`{{DEPLOY_COMMANDS}}`)
-
-| Service | Build artifact / Image | Kịch bản / Lệnh deploy | Rollback | Hiện trạng CI/CD |
-|---|---|---|---|---|
-| `{{service-key-1}}` | `{{BUILD_PACKAGE_CMD}}` | `{{DEPLOY_SCRIPT_OR_K8S}}` | `{{ROLLBACK_CMD}}` | {{CI/CD status, ví dụ: GitLab CI / Jenkins / K8s}} |
-| `{{service-key-2}}` | `{{BUILD_PACKAGE_CMD}}` | `{{DEPLOY_SCRIPT_OR_K8S}}` | `{{ROLLBACK_CMD}}` | {{CI/CD status}} |
-| `{{service-key-3}}` | `{{BUILD_PACKAGE_CMD}}` | `{{DEPLOY_SCRIPT_OR_K8S}}` | `{{ROLLBACK_CMD}}` | {{CI/CD status}} |
-
-*Ghi chú:* Xem catalog lệnh chi tiết tại `docs/COMMANDS.md`.
----
-## 11. Agent working rules [REQUIRED]
-
-### 11.1 Project Configuration Defaults
-- **DB docs path (`{{DB_DOCS_PATH}}`):** `docs/database/` (nếu có, snapshot, migration Liquibase/Flyway/SQL script tại repo tương ứng).
-- **Impact tool (`{{IMPACT_TOOL}}`):** `none` (hoặc tên công cụ phân tích impact nếu có; mặc định sử dụng git diff và source tracing theo `{{LAYER_READ_ORDER}}`).
-- **I18N requirement (`{{I18N_REQUIRED}}`):** `{{false | true}}` (mặc định ngôn ngữ chính, chỉ bật `true` nếu hệ thống yêu cầu đa ngôn ngữ bắt buộc).
-- **Integration surfaces (`{{INTEGRATION_SURFACES}}`):**
-  - {{Giao tiếp RPC/Protobuf, ví dụ: gRPC Protobuf contracts tại `*/src/main/resources/proto/*.proto`}}
-  - {{REST APIs, ví dụ: REST API endpoints / OpenAPI specs}}
-  - {{Message Broker events / topic schema}}
-  - {{Giao thức tích hợp bên thứ ba / External integrations}}
-- **Status vocabulary (`{{STATUS_VOCABULARY}}`):** `draft` → `plan-review` → `approved` → `in_progress` → `testing` → `done` (`blocked` / `cancelled`)
-- **Task format (`{{TASK_FORMAT}}`):** `checklist`
-
-### 11.2 Phạm vi và an toàn
-- Không triển khai bất kỳ tính năng nào ngoài phạm vi đã được duyệt trong `expect.md` / `plan.md` / `tasks.md`.
-- Cập nhật liên tục trạng thái trong `tasks.md` khi tiến hành công việc.
-- `report.md` phải phản ánh file thay đổi thực tế và kết quả test thực tế (`{{REPORT_EVIDENCE}}`).
-- Tuyệt đối không commit hoặc ghi secrets, API keys, password, certificate private key vào code hoặc tài liệu.
-- Không chỉnh sửa file build artifact (`dist/`, `target/`, `node_modules/`, `build/`).
-- **Dependency policy (`{{DEPENDENCY_POLICY}}`):** {{Quy định thêm thư viện mới, ví dụ: Không tự ý thêm dependency mới nếu chưa được phê duyệt tại Gate 1}}.
-- **Forbidden changes (`{{FORBIDDEN_CHANGES}}`):** {{Các thay đổi bắt buộc phải dừng lại xin phê duyệt lại, ví dụ: Thay đổi API/Protobuf public contract, DB schema, RBAC/Security}}.
-- **Deploy triggers (`{{DEPLOY_TRIGGERS}}`):** {{Các loại thay đổi bắt buộc tạo deploy.md, ví dụ: DB migration, cấu hình/env, dependency mới, scheduled job, contract}}.
-- **Mockable integrations (`{{MOCKABLE_INTEGRATIONS}}`):** {{Danh sách dịch vụ được phép mock ở local, ví dụ: Gateway, Payment, Third-party APIs}}.
-
-### 11.3 Quy chuẩn code (`{{CODE_STYLE_RULES}}`)
-- Tuân thủ cấu trúc phân tầng: Controller/Handler → Service/Business Engine → Repository/Client Adapter.
-- Thứ tự implement files trong task (`{{IMPLEMENT_ORDER}}`):
-  - Backend: Entity/Migration/DTO → Repository → Service → Controller/gRPC Handler → Config/Test
-  - Frontend: Types/Models → API Service → Store/State → Components → Pages/Routes
-- Không đặt logic xử lý nghiệp vụ tại tầng Controller/View.
-- Mọi file tạo mới phải ở định dạng **UTF-8 without BOM**.
-- Phản hồi và comment code bằng **{{Vietnamese | English}}**.
-
-### 11.4 Common impact zones (`{{COMMON_IMPACT_ZONES}}`)
-
-| Thay đổi (Change X) | Ảnh hưởng tới (Affects Y) | Mức độ rủi ro | Hành động bắt buộc |
-|---|---|---|---|
-| {{Thay đổi giao tiếp API/Protobuf/RPC}} | {{Tất cả client và service phụ thuộc}} | **CAO (HIGH)** | {{Cập nhật đồng bộ client SDK/contract, kiểm tra tương thích ngược}} |
-| {{Thay đổi schema/cấu trúc dữ liệu core}} | {{Báo cáo, luồng xử lý giao dịch chính}} | **CAO (HIGH)** | {{Tạo migration script, đánh giá dữ liệu cũ}} |
-| {{Thay đổi cấu hình auth/security}} | {{Luồng đăng nhập và xác thực người dùng}} | **CAO (HIGH)** | {{Test kỹ lưỡng các scenario phân quyền và token}} |
----
-
-## 12. Project skills [OPTIONAL]
-
-| Tình huống | Kỹ năng (`docs/skills/`) |
-|---|---|
-| Khởi tạo hoặc cập nhật tài liệu toàn hệ thống | `docs/skills/init-docs/SKILL.md` |
-| Tạo kế hoạch kỹ thuật cho ticket mới | `docs/skills/create-plan/SKILL.md` |
-| Thực thi task và viết mã nguồn | `docs/skills/implement-task/SKILL.md` |
-| Tạo kịch bản kiểm thử từ yêu cầu | `docs/skills/create-testcase/SKILL.md` |
-
----
-
-## 13. Git rules [REQUIRED] (`{{BRANCH_RULE}}`, `{{COMMIT_RULE}}`)
-
-### 13.1 Branch convention (`{{BRANCH_RULE}}`)
-- Tên branch: `feature/{{TICKET_PREFIX}}-<TICKET-NUMBER>-<slug>` hoặc `feature/{{TICKET_PREFIX}}-<TICKET-NUMBER>` (ví dụ: `feature/{{TICKET_PREFIX}}-1024-user-auth` hoặc `feature/{{TICKET_PREFIX}}-1024`) — **đồng nhất trên tất cả các repo tham gia**.
-- Kiểm tra branch trước khi làm việc: `git status`.
-- Tuyệt đối không chuyển branch khi working tree chưa sạch (chưa commit/stash).
-
-### 13.2 Commit & Push (`{{COMMIT_RULE}}`)
-1. `git status` để kiểm tra thay đổi.
-2. Kiểm tra `git diff` và `git diff --staged`.
-3. Format commit message: `<TICKET-ID>: <mô tả ngắn gọn>` (ví dụ `{{TICKET_PREFIX}}-1024: add redis caching layer`).
-4. `git push origin <current-branch>`.
-5. **Agent không tự ý commit/push/merge trừ khi được yêu cầu rõ ràng.**
-
----
-
-## 14. Do not modify unless explicitly requested [REQUIRED]
-
-- `node_modules/`, `target/`, `build/`, `dist/`, `.idea/`, `.vscode/`
-- `.env*`, keystores (`.jks`, `.p12`), certificates, private keys, secrets, credentials
-- Log files, caches, database dump files ngoài `docs/database/`
-
----
-
-## 15. Quick links [REQUIRED]
-
-> **Lưu ý:** Các link dưới đây là đường dẫn tương đối tính từ thư mục gốc của dự án sau khi đã copy file này ra root (`AGENTS.md`).
-
-- [docs/README.md](docs/README.md) — Tổng quan tài liệu
-- [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) — Kiến trúc hệ thống
-- [docs/DESIGN.md](docs/DESIGN.md) — Thiết kế giao diện UI/UX
-- [docs/COMMANDS.md](docs/COMMANDS.md) — Catalog lệnh tắt
-- [docs/specs/](docs/specs/) — Đặc tả nghiệp vụ
-- [docs/rules/](docs/rules/) — Quy tắc vận hành
-- [docs/features/](docs/features/) — Quản lý tickets/features
-- [docs/skills/](docs/skills/) — Danh mục kỹ năng
-
-
 
 # Agent Instructions
 
@@ -428,11 +144,6 @@ Allowed only when requested or for approved parallel chunks. Use the exact task/
 
 ## Tools
 
-### MCP Routing & Strict Enforcement (Hard Constraints)
-- **Strict OUTPUT PREFIX Verification:** You MUST NEVER issue a tool call without first outputting the `[Pre-flight]` prefix.
-- **MCP Route & Priority (Hard Constraints):** BẮT BUỘC ưu tiên dùng các MCP tools chuyên dụng tương ứng với domain của task (ví dụ: dùng MCP tool về code graph thay vì `grep`, dùng MCP tool về browser thay vì `curl`/`wget`, dùng MCP tool về database/memory thay vì tra cứu file thủ công). **CẤM** lạm dụng `bash` (grep, find, awk, curl) hoặc native tools khi trong danh sách công cụ đã có MCP tool phục vụ chức năng đó.
-- **Fallback Rule:** Chỉ dùng bash/native tools thay thế khi MCP báo lỗi không khả dụng hoặc user bắt buộc. Lạm dụng bash/grep thay cho MCP là vi phạm nghiêm trọng.
-
 - Use local search/read/terminal and external docs for third-party integrations as needed.
 - Don't assume optional tools/services exist; fall back gracefully and report limitations.
 - Prefer focused searches/ranges/summaries over entire massive logs or files.
@@ -442,91 +153,6 @@ Allowed only when requested or for approved parallel chunks. Use the exact task/
 ## Windows Shell
 
 Prefer PowerShell 7 (`pwsh`); use other shells only when required. Run heavy tasks sequentially in small steps. Set timeouts for long commands; inspect or stop safely if exceeded.
-
----
-
-## Memorix: Memory and Safety Gate
-
-**Mandatory session bootstrap:** At the start of every new session, initialize Memorix by calling `memorix_session_start` (with `projectRoot` if available) or `memorix_project_context` to load active workspace context. Keep Memorix instructions active across all session turns.
-
-**On-demand usage:** After initialization, use Memorix retrieval/storage tools selectively — for non-trivial coding, debugging, architecture decisions, past context queries, or continuing previous work. Simple single-turn queries do not require full memory searches.
-
-### Memory Autopilot
-
-Default first step for non-trivial coding work (can be done during pre-flight, but does NOT bypass delegation): call `memorix_project_context` with the user's task before progress files, dev-log reads, ad-hoc file reads, or git archaeology. Memorix chooses a task-lensed brief (bugfix, feature, release, onboarding, refactor, docs, test, or general). When continuing prior work, the brief includes a bounded prior-work projection. Treat its "Start here" files as the first workspace files to inspect.
-
-Continuation fallback: when the user asks to continue/resume/take over prior work and MCP cannot be called, run exactly one CLI brief with the user's real task before inspecting files: `memorix resume "<task>" --fallback --brief-json`. For a new task: `memorix context "<task>" --fallback --brief-json`. If that fails, report and proceed normally.
-
-After a successful brief, it is the default retrieval boundary. Use `memorix_context_pack`, `memorix_search`, or `memorix_detail` only when the brief lacks a specific reference or fact needed for the task, or when the user explicitly asks for deeper history.
-
-### When to Search Memory
-
-Use `memorix_graph_context` for explicit memory graph questions or broad graph overview when the autopilot brief is insufficient.
-
-Use `memorix_search` when prior workspace context would help and the brief did not answer the question:
-- The user asks about a past decision, bug, or change
-- Understanding why something was designed a certain way
-- Continuing work from a previous session
-
-No search needed for simple, self-contained tasks (e.g., "fix this typo", "what does this function do"). If no memories exist, proceed normally.
-
-### When to Store Memory
-
-Use `memorix_store` when you learn something a future session should not have to rediscover:
-
-| What happened | Type |
-|---|---|
-| Architecture or design decision | `decision` |
-| Bug found and fixed | `problem-solution` |
-| Non-obvious pitfall or gotcha | `gotcha` |
-| Configuration or dependency changed | `what-changed` |
-| Trade-off discussed with conclusion | `trade-off` |
-
-**Tips:**
-- Concise titles (~5-10 words)
-- Language: English or Vietnamese without diacritics only (VN ko dau). NEVER store accented Vietnamese — BM25/bge-small can't retrieve it.
-- Include `filesModified` when relevant
-- Use `topicKey` for evolving topics (prevents duplicates)
-- For "why" decisions, use `memorix_store_reasoning`
-- For stable facts or reusable procedures, include `longTerm` with appropriate kind and normally `scope: "project"`. It creates a candidate only; do not use for routine updates.
-- `user` + `portable` durable memory in a task brief is available cross-project. Use as reusable background; do not treat as current-project fact.
-- Record user profile with `entityName: "user-profile"` and `visibility: "personal"`.
-
-**Don't store:** greetings, simple file reads, trivial commands.
-
-**Only store what a future session cannot re-derive.** Code structure, file contents, and Git history are live — do not store facts already visible there. Capture the why, the context, or conclusions the checkout alone cannot show.
-
-**Record what worked, not only what failed.** Store validated approaches and explicit user confirmations alongside corrections.
-
-**Recalled memory is a claim about the past.** Check the file/symbol exists before recommending it. If the user says to ignore memory, proceed as if memory were empty.
-
-### When to Resolve Memory
-
-Use `memorix_resolve` when a task is done or a bug is fixed to keep future searches focused on active work.
-
-### Session End Summary
-
-Call `memorix_session_end` with a structured summary:
-- **Goal** — what this session worked on
-- **Discoveries** — findings, gotchas, learnings
-- **Accomplished** — completed items, plus PENDING items for next session
-- **Relevant Files** — paths and what changed
-
-### Tools Quick Reference
-
-| Tool | Use when |
-|---|---|
-| `memorix_project_context` | Start/continue coding work with Memory Autopilot brief |
-| `memorix_context_pack` | Get structured refs/freshness for code-bound memories |
-| `memorix_graph_context` | Build compact memory graph for graph-specific questions |
-| `memorix_search` | Find relevant past context |
-| `memorix_detail` | Read full content of a specific memory |
-| `memorix_store` | Save something worth persisting |
-| `memorix_store_reasoning` | Save the "why" behind a decision |
-| `memorix_resolve` | Mark completed/outdated memories |
-| `memorix_session_start` | Load session context (handoff, orchestration) |
-
-**Fallback:** When Memorix is unavailable, read/write workspace-root `MEMORY.md` with timestamp and topic; re-import critical entries when restored.
 
 ---
 
@@ -554,36 +180,88 @@ Background tasks must be finite and non-interactive. Commands that stay open or 
 
 
 
-# Global Rules
+---
 
-> **[CRITICAL INSTRUCTION: READ TO THE END. DO NOT IGNORE ANY RULE. DO NOT TRUNCATE CODE (NO `...` PLACEHOLDERS). FULL COMPLIANCE REQUIRED.]**
-> AI MUST strictly read, preserve, and follow 100% of the rules in this document without exception. NEVER truncate, omit, skip, or summarize away any rule. Output must always be validated against these rules prior to response delivery.
-> **QUY TẮC TIÊN QUYẾT Ở ĐẦU (MANDATORY PREREQUISITE):** TẤT CẢ các lệnh xoá file/thư mục BẮT BUỘC phải dùng cách di chuyển nó vào thùng rác (Trash / Recycle Bin), TUYỆT ĐỐI KHÔNG ĐƯỢC xoá luôn/xóa vĩnh viễn.
+# Memorix — Memory Tools for Active Workspaces
 
-## 0. PRECEDENCE, DELEGATION, SKILLS & PLUGINS/MCP [MANDATORY PRE-FLIGHT — NEVER SKIP]
-- **PRECEDENCE RULE:** Delegation, Skill, and Plugin/MCP Orchestration rules ALWAYS OVERRIDE "Think Before Coding", "Simplicity", and "Goal-Driven". Whenever a task involves ≥2 steps, multi-file scope, or investigation, delegation is MANDATORY. "Simplicity" and "Goal-Driven" apply *within* the subagent's scope, NOT as an excuse for the Main Agent to do everything directly.
-- **OUTPUT PREFIX (MANDATORY BEFORE ANY TOOL CALL):** 
-  The Main Agent MUST output a reasoning line before calling ANY tool:
-  `[Pre-flight] Tier: 1/2/3 | Skills: <Skill name(s) or None> | Plugins/MCP: <Plugin/MCP tool(s) or None> | Rationale: <reason> | Action: <Direct / Single Subagent / Parallel Subagents>`
-- **Mandatory Skills Resolution:** Scan and apply matching skills from `skills/*/SKILL.md` (e.g. `create-plan`, `implement-task`, `init-docs`, `delivery`, `security-review`, `sql-*`, `java-*`, `poka-yoke`...). Never invent ad-hoc procedures when an established skill exists.
-- **Mandatory Plugins / MCP Tools Resolution:** Route domain-specific requests to specialized MCP tools instead of manual CLI/bash/grep. Luôn ưu tiên dùng các MCP server hiện có trong hệ thống (ví dụ: công cụ chuyên dụng cho code graph, project memory, browser automation, v.v. - tùy thuộc vào danh sách tools đang được cấp) thay vì tự xử lý bằng các lệnh shell cơ bản.
-- **Delegation logic:**
-  - Prefer delegating to specialized subagents (`scout`, `task`, `reviewer`, `docs-*`, `dely-*`) in parallel batches via the `task` tool whenever work has 2+ steps, multi-file scope, or distinct inspection/implementation slices.
-  - Do not sequentially inspect > 1 file or serialize independent tasks in the main agent. Fan out concurrently to minimize latency, ensure accuracy, and save main context window.
-  - Main agent acts primarily as Dispatcher & Integrator.
+Use Memorix when the active workspace has Memorix tools available and prior context would materially help. For non-trivial coding work, Memory Autopilot is the default entry point before local progress notes or broad file exploration. Do not assume every workspace is configured for Memorix.
 
-## 1. Global Rules
-- Always respond in Vietnamese (except code identifiers, error strings, shell commands, URLs).
-- Never commit, branch, or open PRs unless explicitly requested.
-- **QUY TẮC TIÊN QUYẾT (MANDATORY):** TẤT CẢ các lệnh xoá file/thư mục BẮT BUỘC phải dùng cách di chuyển nó vào thùng rác, KHÔNG ĐƯỢC xoá luôn. Never permanently delete user files. Clean temporary files only by moving them to the Recycle Bin / Trash.
-- Create/update files only in the current workspace; ask before editing outside it.
-- Do not stop or downgrade scope/model/agents solely for cost warnings. Continue when technically possible; report platform blocks.
-- Disclose failed commands/tests and incomplete verification. Never claim unverified success.
-- Do not refactor, reformat, or improve unrelated code. Match project style.
-- Every changed line must trace directly to the user's request.
-- MANDATORY RULE COMPLIANCE: AI MUST strictly follow ALL rules in AGENTS.md and RULES.md without exception. NEVER skip, omit, or downgrade any rule. ALWAYS verify final output against every applicable rule for compliance before responding.
+## Start with Memory Autopilot
 
-## 2. MCP Routing & Strict Enforcement
-- **Strict OUTPUT PREFIX Verification:** You MUST NEVER issue a tool call without first outputting the `[Pre-flight]` prefix. If you generate a tool call without this prefix, you have violated a core directive.
-- **MCP Route & Priority (Hard Constraints):** BẮT BUỘC ưu tiên dùng các MCP tools chuyên dụng tương ứng với domain của task (ví dụ: dùng MCP tool về code graph thay vì `grep`, dùng MCP tool về browser thay vì `curl`/`wget`, dùng MCP tool về database/memory thay vì tra cứu file thủ công). **CẤM** lạm dụng `bash` (grep, find, awk, curl) hoặc native tools khi trong danh sách công cụ đã có MCP tool phục vụ chức năng đó.
-- **Fallback Rule:** Chỉ được dùng bash/native tools khi MCP tool tương ứng báo lỗi không khả dụng (connection refused, not configured) HOẶC user rõ ràng yêu cầu dùng bash. Trừ khi đó, lạm dụng bash/grep thay cho MCP là vi phạm nghiêm trọng.
+Default first step for non-trivial coding work: call `memorix_project_context` with the user's actual task before progress files, dev-log reads, ad-hoc file reads, or git archaeology. Memorix will choose a task-lensed brief (bugfix, feature, release, onboarding, refactor, docs, test, or general). When the task is continuing prior work, the same brief also includes a bounded prior-work projection. Treat its "Start here" files as the first workspace files to inspect.
+
+If the MCP tool is not visible yet but the client supports tool discovery or dynamic loading, search/select `memorix_project_context` first. Continuation fallback is mandatory: when the user asks to continue, resume, take over, or explain prior work and MCP cannot be called in this turn, run exactly one CLI brief with the user's real task before inspecting files, Git history, progress notes, or guessing: `memorix resume "<task>" --fallback --brief-json`. For a new task, use `memorix context "<task>" --fallback --brief-json` instead. The absence of `.memorix` or visible memory files never proves project memory is empty. Use `--json` only when a diagnostic needs the detailed legacy payload. If that one command fails, report it and proceed normally. Do not probe help, enumerate commands, chain broad searches, wait indefinitely on MCP startup, or hand-write tool-call syntax.
+
+After a successful `memorix_project_context` result, the brief is the default retrieval boundary. Do not call more Memorix retrieval tools after a complete brief. Use `memorix_context_pack`, `memorix_search`, or `memorix_detail` only when the brief lacks a specific reference, freshness field, or fact needed for the task, or when the user explicitly asks for deeper history. In MCP, name that missing fact in `purpose` when intentionally expanding beyond the brief. Do not retrieve the same decision twice just to confirm an already-complete brief.
+If the user asks for read-only work or says not to modify files, do not call `memorix_store` just to record an assessment. Store only when the user explicitly asks to preserve it.
+
+## When to search memory
+
+Use `memorix_graph_context` for explicit memory graph questions or broad graph overview after the autopilot brief is not enough.
+
+Use `memorix_search` when prior workspace context would help and the Autopilot brief did not already answer the question — for example:
+- The user asks about a past decision, bug, or change
+- You need to understand why something was designed a certain way
+- You're continuing work that started in a previous session
+
+You do **not** need to search memory for simple, self-contained tasks (e.g., "fix this typo", "what does this function do").
+
+If no memories exist yet, that’s fine — just proceed normally.
+
+## When to store memory
+
+Use `memorix_store` when you learn something a future session should not have to rediscover:
+
+| What happened | Type |
+|---|---|
+| Architecture or design decision | `decision` |
+| Bug found and fixed | `problem-solution` |
+| Non-obvious pitfall or gotcha | `gotcha` |
+| Configuration or dependency changed | `what-changed` |
+| Trade-off discussed with conclusion | `trade-off` |
+
+**Tips for good memories:**
+- Use concise titles (~5-10 words)
+- Include `filesModified` when relevant
+- Use `topicKey` for topics that evolve over time (prevents duplicates)
+- For "why" decisions, use `memorix_store_reasoning`
+- For a stable fact, reusable procedure, or completed episode that merits deliberate long-term review, include `longTerm` in `memorix_store` with the appropriate kind and normally `scope: "project"`. It creates a candidate only: do not use it for routine updates, do not make project-derived evidence portable user memory, and do not assume it enters context until an operator qualifies and approves it through `memorix memory long-term`.
+- A `user` + `portable` durable memory delivered in a task brief is intentionally available across projects. When it matches the task, use it as reusable background even if its origin differs; do not treat it as a current-project fact. Expand it only when needed with `memorix_detail` using its `durable:<id>` reference and a specific purpose.
+- Record the user profile: the user’s role, expertise, preferences, and goals. Save these with `entityName: "user-profile"` and `visibility: "personal"` so they stay private and appear in every brief as the "who you are" context.
+
+**Don't store:** greetings, simple file reads, trivial commands (ls, pwd, git status).
+
+**Only store what a future session cannot re-derive.** Code structure, file contents, and Git history are live in the checkout — do not store facts already visible there. A memory earns its place by capturing the why, the context, or a conclusion the checkout alone cannot show.
+
+**Record what worked, not only what failed.** Store validated approaches and explicit user confirmations alongside corrections. Saving only failures drifts behavior away from what the user already accepted; a clear "yes, that's right" is feedback worth keeping too.
+
+**Recalled memory is a claim about the past.** A memory naming a specific file, function, or flag describes the past at write time — check the file exists or grep the symbol before recommending it. If the user says to ignore or not use memory, proceed as if memory were empty: do not apply, cite, compare, or mention stored content.
+
+## When to resolve memory
+
+Use `memorix_resolve` when a task is done or a bug is fixed. This keeps future searches focused on active work instead of surfacing completed items.
+
+## End sessions with a summary
+
+When a session finishes, call `memorix_session_end` with a short structured summary so the next agent can resume. Recommended sections:
+- **Goal** — what this session was working on
+- **Discoveries** — findings, gotchas, learnings
+- **Accomplished** — completed items, plus PENDING items for the next session
+- **Relevant Files** — paths and what changed
+
+## Tools quick reference
+
+| Tool | Use when |
+|---|---|
+| `memorix_project_context` | Start or continue coding work with the task-lensed Memory Autopilot brief |
+| `memorix_context_pack` | Get structured refs/freshness for code-bound memories |
+| `memorix_graph_context` | Build a compact memory graph packet for graph-specific questions |
+| `memorix_search` | Find relevant past context |
+| `memorix_detail` | Read full content of a specific memory |
+| `memorix_store` | Save something worth persisting |
+| `memorix_store_reasoning` | Save the "why" behind a decision |
+| `memorix_resolve` | Mark completed/outdated memories |
+| `memorix_session_start` | Load session context (handoff, orchestration coordination) |
+| `memorix_evidence` | Check a memory source, freshness, and verification state |
+| `memorix_feedback` | Record whether a memory helped, conflicted, or was corrected |
+| `memorix_media` | Inspect or import controlled local media |
