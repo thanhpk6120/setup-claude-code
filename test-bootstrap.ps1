@@ -35,6 +35,8 @@ try {
     New-Item -ItemType Directory -Force -Path $mockTrashGuardDir | Out-Null
     $mockTrashGuardPath = Join-Path $mockTrashGuardDir "claude-pre-tool.cmd"
     Set-Content -Path $mockTrashGuardPath -Value "@echo off"
+    $mockCloakDir = Join-Path $env:TEMP ("claude-cloak-" + [System.Guid]::NewGuid().ToString("N"))
+    $env:CLOAKBROWSER_DIR = $mockCloakDir
 
     Write-Host "Running bootstrap into temp dir (Case A: with orca hook): $tempDir"
     $env:ORCA_HOOK_PATH = $mockOrcaPath
@@ -98,6 +100,12 @@ try {
     if ($mcpJson.mcpServers.glab.command -ne "glab") {
         throw "ASSERTION FAILED: glab command should be 'glab', but was '$($mcpJson.mcpServers.glab.command)'"
     }
+    if ($mcpJson.mcpServers.cloakbrowser.command -ne "node") {
+        throw "ASSERTION FAILED: cloakbrowser command should be 'node', but was '$($mcpJson.mcpServers.cloakbrowser.command)'"
+    }
+    if ($mcpJson.mcpServers.cloakbrowser.args -notmatch [regex]::Escape($mockCloakDir)) {
+        throw "ASSERTION FAILED: cloakbrowser args should contain mockCloakDir '$mockCloakDir'"
+    }
 
     $claudeMd = Join-Path $tempDir "CLAUDE.md"
     if (-not (Test-Path $claudeMd)) { throw "ASSERTION FAILED: CLAUDE.md missing" }
@@ -140,5 +148,7 @@ try {
     Safe-Trash $mockBinDir
     Safe-Trash $mockNpmDir
     Safe-Trash $mockOrcaDir
+    Safe-Trash $mockCloakDir
+    Remove-Item env:CLOAKBROWSER_DIR -ErrorAction SilentlyContinue
     if ($oldPath) { $env:Path = $oldPath }
 }

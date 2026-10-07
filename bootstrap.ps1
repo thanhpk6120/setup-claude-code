@@ -105,7 +105,8 @@ function Get-EnvOrPrompt {
     if (-not [string]::IsNullOrWhiteSpace($val)) { return $val }
     $hasDefault = $PSBoundParameters.ContainsKey('Default')
     while ($true) {
-        $p = if ($hasDefault) { "$Prompt (Default: $Default)" } else { $Prompt }
+        $p = $Prompt
+        if ($hasDefault) { $p = "$Prompt (Default: $Default)" }
         $in = Read-Host $p
         if (-not [string]::IsNullOrWhiteSpace($in)) { return $in.Trim() }
         if ($hasDefault) { return $Default }
@@ -126,8 +127,10 @@ $gitlabToken = Get-EnvOrPrompt -EnvName "GITLAB_TOKEN" -Prompt "GitLab Personal 
 
 if (-not [string]::IsNullOrWhiteSpace($gitlabToken) -and -not $DryRun) {
     Write-Host "==> Configuring GitLab authentication for host '$gitlabHost'..." -ForegroundColor Cyan
-    $proto = if ($gitlabHost -match '^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}' -or $gitlabHost -match ':80') { "http" } else { "https" }
-    $glabCmd = if (Get-Command "glab" -ErrorAction SilentlyContinue) { "glab" } elseif (Test-Path "$env:LOCALAPPDATA\Programs\glab\glab.exe") { "$env:LOCALAPPDATA\Programs\glab\glab.exe" } else { "glab" }
+    $proto = "https"
+    if ($gitlabHost -match '^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}' -or $gitlabHost -match ':80') { $proto = "http" }
+    $glabCmd = "glab"
+    if (Get-Command "glab" -ErrorAction SilentlyContinue) { $glabCmd = "glab" } elseif (Test-Path "$env:LOCALAPPDATA\Programs\glab\glab.exe") { $glabCmd = "$env:LOCALAPPDATA\Programs\glab\glab.exe" }
     try {
         & $glabCmd config set api_protocol $proto -g --host $gitlabHost 2>$null
         $tokenSec = $gitlabToken.Trim()
@@ -145,15 +148,93 @@ if (-not $DryRun -and $ClaudeDir -eq "$env:USERPROFILE\.claude") {
 Write-Host "==> Ensuring directory $ClaudeDir exists..." -ForegroundColor Cyan
 if (-not $DryRun) { New-Item -ItemType Directory -Force -Path $ClaudeDir | Out-Null }
 
-$cbSourceDir = Join-Path $PSScriptRoot "mcp-servers\cloakbrowser"
-$cbTargetDir = "$env:USERPROFILE\mcp-servers\cloakbrowser"
-if (-not $DryRun) {
-    New-Item -ItemType Directory -Force -Path $cbTargetDir | Out-Null
-    if (-not (Test-Path (Join-Path $cbTargetDir "package.json"))) {
-        Copy-Item -Path "$cbSourceDir\*" -Destination $cbTargetDir -Recurse -Force -ErrorAction SilentlyContinue
+function Get-CloakBrowserInstallDir {
+    param([string]$EnvVarName = "CLOAKBROWSER_DIR")
+    $envVal = [Environment]::GetEnvironmentVariable($EnvVarName, "Process")
+    if (-not [string]::IsNullOrWhiteSpace($envVal)) { return $envVal.Trim() }
+
+    $drives = @()
+    try {
+        $drives = Get-CimInstance Win32_LogicalDisk -ErrorAction SilentlyContinue | Where-Object { $_.DriveType -eq 3 } | Sort-Object FreeSpace -Descending
+    } catch {
+        $drives = Get-PSDrive -PSProvider FileSystem | Where-Object { $_.Free -gt 0 } | Sort-Object Free -Descending
     }
+    if (-not $drives -or $drives.Count -eq 0) { return "$env:USERPROFILE\mcp-servers\cloakbrowser" }
+
+    $defaultDrive = $drives | Where-Object { ($_.DeviceID -eq 'D:' -or $_.Name -eq 'D') } | Select-Object -First 1
+    if (-not $defaultDrive) { $defaultDrive = $drives[0] }
+    $defaultLetter = ""
+    if ($defaultDrive.DeviceID) { $defaultLetter = $defaultDrive.DeviceID } else { $defaultLetter = "$($defaultDrive.Name):" }
+    if ([Environment]::GetEnvironmentVariable("CI") -or -not [Environment]::UserInteractive) {
+        return "$defaultLetter\mcp-servers\cloakbrowser"
+    }
+
+    Write-Host "`n==> Quet danh sach o dia (Local Drives) de cai dat CloakBrowser MCP:" -ForegroundColor Cyan
+    for ($i = 0; $i -lt $drives.Count; $i++) {
+        $d = $drives[$i]
+        $devId = ""
+        if ($d.DeviceID) { $devId = $d.DeviceID } else { $devId = "$($d.Name):" }
+        $volName = ""
+        if ($d.VolumeName) { $volName = " ($($d.VolumeName))" }
+        $freeGB = 0
+        $freeVal = $d.Free
+        if ($d.FreeSpace) { $freeVal = $d.FreeSpace }
+        $freeGB = [math]::Round(($freeVal / 1GB), 2)
+        $sizeGB = "N/A"
+        if ($d.Size) { $sizeGB = [math]::Round(($d.Size / 1GB), 2) }
+        Write-Host "  [$($i+1)] O $devId$volName | Trong: $freeGB GB / $sizeGB GB"
+    }
+
+    $promptMsg = "Chon so thu tu o dia muon luu CloakBrowser (mac dinh o $defaultLetter)"
+    try {
+        $inputVal = Read-Host $promptMsg
+        if (-not [string]::IsNullOrWhiteSpace($inputVal)) {
+            $choice = $inputVal.Trim()
+            $idx = 0
+            if ([int]::TryParse($choice, [ref]$idx) -and $idx -ge 1 -and $idx -le $drives.Count) {
+                $chosen = $drives[$idx - 1]
+                $chosenLetter = ""
+                if ($chosen.DeviceID) { $chosenLetter = $chosen.DeviceID } else { $chosenLetter = "$($chosen.Name):" }
+                return "$chosenLetter\mcp-servers\cloakbrowser"
+            }
+        }
+    } catch {}
+    return "$defaultLetter\mcp-servers\cloakbrowser"
 }
-$cloakScript = (Join-Path $cbTargetDir "mcp-server-full.mjs").Replace('\', '\\')
+
+function Setup-CloakBrowser {
+    param([string]$TargetDir, [string]$SourceDir, [switch]$DryRun, [switch]$SkipInstall)
+    Write-Host "==> Cau hinh CloakBrowser tai: $TargetDir" -ForegroundColor Cyan
+    if (-not (Test-Path $TargetDir)) {
+        if (-not $DryRun) { New-Item -ItemType Directory -Path $TargetDir -Force | Out-Null }
+    }
+
+    $mainScript = Join-Path $TargetDir "mcp-server-full.mjs"
+    $pkgJson = Join-Path $TargetDir "package.json"
+    if ((Test-Path $mainScript) -and (Test-Path $pkgJson)) {
+        Write-Host "  -> CloakBrowser da ton tai day du file ma nguon. Giu nguyen du lieu & profile cu (khong ghi de)." -ForegroundColor Green
+    } else {
+        Write-Host "  -> Copy ma nguon CloakBrowser sang $TargetDir..." -ForegroundColor Green
+        if (-not $DryRun -and (Test-Path $SourceDir)) {
+            Copy-Item -Path "$SourceDir\*" -Destination $TargetDir -Recurse -Force
+        }
+    }
+
+    $nodeModules = Join-Path $TargetDir "node_modules"
+    if (-not $SkipInstall -and -not (Test-Path $nodeModules)) {
+        Write-Host "  -> Dang chay 'npm install' cho CloakBrowser..." -ForegroundColor Cyan
+        if (-not $DryRun) {
+            Push-Location $TargetDir
+            try { npm install --omit=dev --silent } catch { Write-Warning "npm install cho CloakBrowser gap loi: $($_.Exception.Message)" } finally { Pop-Location }
+        }
+    }
+    return $mainScript
+}
+
+$cbSourceDir = Join-Path $PSScriptRoot "mcp-servers\cloakbrowser"
+$cbTargetDir = Get-CloakBrowserInstallDir
+$cloakScriptPath = Setup-CloakBrowser -TargetDir $cbTargetDir -SourceDir $cbSourceDir -DryRun:$DryRun -SkipInstall:$SkipInstall
+$cloakScript = ($cloakScriptPath).Replace('\', '\\')
 
 $mcpJsonStr = @"
 {
@@ -231,18 +312,21 @@ if (-not $DryRun) {
 
 $hudSrcFile = Join-Path $PSScriptRoot "hud/hud.mjs"
 $hudDestFile = Join-Path $ClaudeDir "hud/hud.mjs"
-$hudEffective = if ($env:HUD_PATH) { $env:HUD_PATH } else { $hudDestFile }
+    $hudEffective = $hudDestFile
+    if ($env:HUD_PATH) { $hudEffective = $env:HUD_PATH }
 $hasHud = (Test-Path $hudEffective) -or ((-not $env:HUD_PATH) -and (Test-Path $hudSrcFile))
 
 $claudeDirFwd = $ClaudeDir.Replace('\','/')
-$hudCmdJson = if ($env:HUD_PATH) { $env:HUD_PATH.Replace('\','/') } else { "$claudeDirFwd/hud/hud.mjs" }
+    $hudCmdJson = "$claudeDirFwd/hud/hud.mjs"
+    if ($env:HUD_PATH) { $hudCmdJson = $env:HUD_PATH.Replace('\','/') }
 
  $hudStatusLine = ""
  if ($hasHud) {
      $hudStatusLine = ",`n  `"statusLine`": {`n    `"type`": `"command`",`n    `"command`": `"node $hudCmdJson`"`n  }"
  }
 
-$trashGuardCmd = if ($env:TRASH_GUARD_HOOK_PATH) { $env:TRASH_GUARD_HOOK_PATH } else { Join-Path $env:USERPROFILE ".trash-guard/claude-pre-tool.cmd" }
+    $trashGuardCmd = Join-Path $env:USERPROFILE ".trash-guard/claude-pre-tool.cmd"
+    if ($env:TRASH_GUARD_HOOK_PATH) { $trashGuardCmd = $env:TRASH_GUARD_HOOK_PATH }
 $trashGuardPreToolUse = ""
 if (Test-Path $trashGuardCmd) {
 $trashGuardPreToolUse = @"
@@ -272,7 +356,8 @@ $trashGuardPreToolUse = @"
 "@
 }
 
-$orcaHookPath = if ($env:ORCA_HOOK_PATH) { $env:ORCA_HOOK_PATH } else { Join-Path $env:USERPROFILE ".orca/agent-hooks/claude-hook.cmd" }
+    $orcaHookPath = Join-Path $env:USERPROFILE ".orca/agent-hooks/claude-hook.cmd"
+    if ($env:ORCA_HOOK_PATH) { $orcaHookPath = $env:ORCA_HOOK_PATH }
 $hasOrca = Test-Path $orcaHookPath
 
 $orcaSessionStart = ""
