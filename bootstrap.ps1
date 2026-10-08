@@ -157,11 +157,35 @@ if (-not $SkipInstall -and -not (Get-Command "uv" -ErrorAction SilentlyContinue)
     }
 }
 
-# Cài đặt mcp-atlassian
+# Cài đặt mcp-atlassian (kiểm tra phiên bản trước để tránh lỗi khóa file Windows)
 if (-not $SkipInstall) {
-    Write-Host "==> Installing/updating mcp-atlassian globally via uv tool..." -ForegroundColor Cyan
-    if (-not $DryRun -and (Get-Command "uv" -ErrorAction SilentlyContinue)) {
-        try { uv tool install mcp-atlassian==0.23.1 --upgrade } catch { Write-Warning "Failed to install mcp-atlassian: $($_.Exception.Message)" }
+    $targetAtlassianVer = "0.23.1"
+    $atlassianCmd = Get-Command "mcp-atlassian" -ErrorAction SilentlyContinue
+    $needAtlassianInstall = $true
+
+    if ($atlassianCmd) {
+        try {
+            $currentVer = (& mcp-atlassian --version 2>&1 | Out-String).Trim()
+            if ($currentVer -match $targetAtlassianVer) {
+                Write-Host "  -> mcp-atlassian==$targetAtlassianVer đã được cài đặt và đúng phiên bản. Bỏ qua cài đặt lại để tránh lỗi khóa file Windows (Access is denied / os error 5)." -ForegroundColor Green
+                $needAtlassianInstall = $false
+            }
+        } catch {}
+    }
+
+    if ($needAtlassianInstall) {
+        Write-Host "==> Đang cài đặt mcp-atlassian==$targetAtlassianVer qua uv tool..." -ForegroundColor Cyan
+        if (-not $DryRun -and (Get-Command "uv" -ErrorAction SilentlyContinue)) {
+            try {
+                uv tool install "mcp-atlassian==$targetAtlassianVer" --upgrade
+            } catch {
+                if ($_.Exception.Message -match "os error 5" -or $_.Exception.Message -match "Access is denied") {
+                    Write-Warning "Không thể ghi đè mcp-atlassian do tiến trình đang chạy ngầm trong hệ thống (Windows File Lock). Bản hiện tại vẫn sẽ được tiếp tục sử dụng."
+                } else {
+                    Write-Warning "Cài đặt mcp-atlassian gặp lỗi: $($_.Exception.Message)"
+                }
+            }
+        }
     }
 }
 
@@ -500,6 +524,23 @@ if (-not $DryRun) {
     $srcTrashGuard = Join-Path $PSScriptRoot "trash-guard"
     if (Test-Path $srcTrashGuard) {
         Copy-Item -Path "$srcTrashGuard\*" -Destination $targetTrashGuard -Force -Recurse
+    }
+    # Dọn dẹp tuyệt đối PowerShell Profile: Đảm bảo terminal của người dùng sạch sẽ 100%
+    $profileCandidates = @(
+        "$env:USERPROFILE\Documents\PowerShell\Microsoft.PowerShell_profile.ps1",
+        "$env:USERPROFILE\Documents\WindowsPowerShell\Microsoft.PowerShell_profile.ps1",
+        "$env:USERPROFILE\Documents\PowerShell\profile.ps1",
+        "$env:USERPROFILE\Documents\WindowsPowerShell\profile.ps1"
+    )
+    foreach ($profPath in $profileCandidates) {
+        if (Test-Path $profPath) {
+            $profContent = Get-Content -Path $profPath -Raw -Encoding UTF8
+            if ($profContent -match "trash-guard") {
+                $cleanedProf = ($profContent -split "`r?`n" | Where-Object { $_ -notmatch "trash-guard" }) -join "`r`n"
+                [System.IO.File]::WriteAllText($profPath, $cleanedProf.Trim() + "`r`n", [System.Text.UTF8Encoding]::new($false))
+                Write-Host "  -> Đã gỡ bỏ hook trash-guard khỏi PowerShell Profile ($profPath) để giữ terminal sạch sẽ 100%." -ForegroundColor Green
+            }
+        }
     }
 
     $srcHud = Join-Path $PSScriptRoot "hud"

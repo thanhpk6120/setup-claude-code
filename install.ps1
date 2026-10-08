@@ -110,7 +110,7 @@ if (-not [string]::IsNullOrWhiteSpace($env:AI_API_KEY)) {
 }
 
 while ([string]::IsNullOrWhiteSpace($aiApiKey)) {
-    if ([Console]::IsInputRedirected) {
+    if ([Console]::IsInputRedirected -or -not [Environment]::UserInteractive) {
         throw "Lỗi: Đang chạy ở chế độ non-interactive nhưng AI API Key chưa được cung cấp qua biến môi trường `$env:AI_API_KEY`."
     }
     $inputKey = Read-Host "Nhập AI API Key (Bắt buộc)"

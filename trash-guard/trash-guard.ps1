@@ -81,27 +81,47 @@ function trash {
 }
 
 Set-Alias -Name recycle -Value trash -Option AllScope -Force -ErrorAction SilentlyContinue
+Set-Alias -Name trash-cli -Value trash -Option AllScope -Force -ErrorAction SilentlyContinue
 
-function Block-HardDelete {
-    param()
-    $msg = "[LỖI NGHIÊM TRỌNG] Thao tác xóa cứng bị chặn!`n" +
-           "QUY TẮC TIÊN QUYẾT: TUYỆT ĐỐI KHÔNG ĐƯỢC xoá cứng/xoá vĩnh viễn file hoặc thư mục.`n" +
-           "BẮT BUỘC phải dùng lệnh di chuyển vào thùng rác (Trash / Recycle Bin).`n" +
-           "Vui lòng dùng: trash <đường_dẫn>"
-    throw $msg
+# Tự động chuyển hướng an toàn các lệnh xóa tiện ích sang trash nếu là thao tác trên FileSystem
+function Safe-RemoveRedirect {
+    [CmdletBinding()]
+    param(
+        [Parameter(ValueFromRemainingArguments = $true)]
+        [string[]]$Arguments
+    )
+    $fileTargets = @()
+    $nonFileTargets = @()
+
+    foreach ($arg in $Arguments) {
+        if ([string]::IsNullOrWhiteSpace($arg)) { continue }
+        if ($arg -match '^[/-]{1,2}[a-zA-Z]+$') { continue }
+        if ($arg -match '^(alias|env|variable|function|cert|hkcu|hklm|wsman):' -or ($arg -like '*:*' -and $arg -notmatch '^[a-zA-Z]:')) {
+            $nonFileTargets += $arg
+        } else {
+            $fileTargets += $arg
+        }
+    }
+
+    if ($nonFileTargets.Count -gt 0) {
+        Microsoft.PowerShell.Management\Remove-Item @Arguments
+        return
+    }
+
+    if ($fileTargets.Count -gt 0) {
+        Write-Host "[Trash Guard] Thao tác xóa đã được tự động chuyển hướng an toàn vào Thùng rác (Recycle Bin)." -ForegroundColor Yellow
+        trash -Path $fileTargets
+    } else {
+        Microsoft.PowerShell.Management\Remove-Item @Arguments
+    }
 }
 
-# Override built-in aliases & functions
-$blockedCommands = @('Remove-Item', 'rm', 'del', 'erase', 'rd', 'rmdir', 'ri')
-foreach ($cmd in $blockedCommands) {
-    Remove-Item "alias:$cmd" -Force -ErrorAction SilentlyContinue
-    Set-Alias -Name $cmd -Value Block-HardDelete -Scope Global -Option AllScope -Force -ErrorAction SilentlyContinue
+# Chỉ gán các alias gõ tắt (rm, del, erase, rd, rmdir) sang Safe-RemoveRedirect
+# Tuyệt đối không override Remove-Item gốc để tránh ảnh hưởng đến các module nội bộ của PowerShell
+$convenienceCommands = @('rm', 'del', 'erase', 'rd', 'rmdir')
+foreach ($cmd in $convenienceCommands) {
+    if (Test-Path "alias:$cmd") {
+        Microsoft.PowerShell.Management\Remove-Item "alias:$cmd" -Force -ErrorAction SilentlyContinue
+    }
+    Set-Alias -Name $cmd -Value Safe-RemoveRedirect -Scope Global -Option AllScope -Force -ErrorAction SilentlyContinue
 }
-
-function global:Remove-Item { Block-HardDelete @args }
-function global:rm { Block-HardDelete @args }
-function global:del { Block-HardDelete @args }
-function global:erase { Block-HardDelete @args }
-function global:rd { Block-HardDelete @args }
-function global:rmdir { Block-HardDelete @args }
-function global:ri { Block-HardDelete @args }
