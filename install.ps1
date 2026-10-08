@@ -155,12 +155,18 @@ $context7Key = if ([string]::IsNullOrWhiteSpace($inputCtxKey)) { "" } else { $in
 
 # 4. Tùy chọn Memorix
 Write-Host ""
-Write-Host "==> Cấu hình tiện ích Memorix..." -ForegroundColor Cyan
+Write-Host "==> Kiểm tra tiện ích Memorix..." -ForegroundColor Cyan
+$existingMemorix = Get-Command "memorix" -ErrorAction SilentlyContinue
 $enableMemorixVal = $false
+
 if ($PSBoundParameters.ContainsKey('EnableMemorix')) {
     $enableMemorixVal = $EnableMemorix.IsPresent
 } elseif ($PSBoundParameters.ContainsKey('DisableMemorix')) {
     $enableMemorixVal = -not $DisableMemorix.IsPresent
+} elseif ($existingMemorix) {
+    Write-Host "==> Đã phát hiện Memorix trên máy (tại: $($existingMemorix.Source))." -ForegroundColor Green
+    Write-Host "==> Tự động kích hoạt và cập nhật Memorix lên phiên bản mới nhất..." -ForegroundColor Green
+    $enableMemorixVal = $true
 } else {
     $memorixPrompt = Read-Host "Bạn có muốn cài đặt Memorix (MCP & Session Memory) không? [y/N]"
     if (-not [string]::IsNullOrWhiteSpace($memorixPrompt) -and $memorixPrompt.Trim().ToLower() -eq 'y') {

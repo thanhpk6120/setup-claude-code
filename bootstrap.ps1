@@ -47,9 +47,13 @@ function Move-ToRecycleBinFile([string]$Path) {
 }
 
 # Xác định cờ $EnableMemorix
+$existingMemorix = Get-Command "memorix" -ErrorAction SilentlyContinue
 if (-not $PSBoundParameters.ContainsKey('EnableMemorix') -and -not $PSBoundParameters.ContainsKey('DisableMemorix')) {
     if ($env:ENABLE_MEMORIX) {
         $EnableMemorix = ($env:ENABLE_MEMORIX -eq '1' -or $env:ENABLE_MEMORIX -eq 'true')
+    } elseif ($existingMemorix) {
+        Write-Host "==> Đã phát hiện Memorix trên máy (tại: $($existingMemorix.Source)). Tự động kích hoạt và cập nhật..." -ForegroundColor Green
+        $EnableMemorix = $true
     } elseif ([Environment]::UserInteractive -and -not [Console]::IsInputRedirected) {
         $memorixChoice = Read-Host "Bạn có muốn cài đặt Memorix (MCP & Session Memory) không? [y/N]"
         $EnableMemorix = if (-not [string]::IsNullOrWhiteSpace($memorixChoice) -and $memorixChoice.Trim().ToLower() -eq 'y') { $true } else { $false }
@@ -172,11 +176,17 @@ if (-not $SkipInstall -and -not (Get-Command "glab" -ErrorAction SilentlyContinu
     }
 }
 
-# Cài đặt memorix (chỉ khi $EnableMemorix = $true)
+# Cài đặt / cập nhật memorix (khi $EnableMemorix = $true)
 if ($EnableMemorix) {
-    if (-not $SkipInstall -and -not (Get-Command "memorix" -ErrorAction SilentlyContinue)) {
-        Write-Host "==> Installing memorix globally..." -ForegroundColor Cyan
-        if (-not $DryRun) { npm install -g memorix --silent }
+    if (-not $SkipInstall) {
+        Write-Host "==> Đang cài đặt / cập nhật Memorix lên phiên bản mới nhất (npm install -g memorix)..." -ForegroundColor Cyan
+        if (-not $DryRun) {
+            try {
+                npm install -g memorix
+            } catch {
+                Write-Warning "Cài đặt/cập nhật Memorix gặp lỗi: $($_.Exception.Message)"
+            }
+        }
     }
     if (-not $SkipInstall) {
         Write-Host "==> Registering memorix Claude Code plugin + hooks..." -ForegroundColor Cyan
