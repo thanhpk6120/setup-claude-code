@@ -121,85 +121,39 @@ while ([string]::IsNullOrWhiteSpace($aiApiKey)) {
     Write-Host "Lỗi: AI API Key là bắt buộc, không được để trống. Vui lòng nhập lại!" -ForegroundColor Red
 }
 
-# 3. Cấu hình hệ thống tích hợp (Tùy chọn, ấn Enter để bỏ qua nếu không nhập)
+# 3. Hỏi tương tác cài đặt Memorix
 Write-Host ""
-Write-Host "==> Cấu hình các hệ thống tích hợp (Tùy chọn, nhấn Enter để bỏ qua)..." -ForegroundColor Cyan
-
-# Jira
-$defaultJiraUrl = if ($env:JIRA_URL) { $env:JIRA_URL } else { "https://jira.cybertech.vn" }
-$inputJiraUrl = Read-Host "Nhập Jira URL [Mặc định: $defaultJiraUrl] (Nhấn Enter để dùng mặc định, hoặc nhập URL khác)"
-$jiraUrl = if ([string]::IsNullOrWhiteSpace($inputJiraUrl)) { $defaultJiraUrl } else { $inputJiraUrl.Trim() }
-
-$inputJiraToken = Read-Host "Nhập Jira Personal Token [Nhấn Enter để bỏ qua nếu không dùng Jira]"
-$jiraToken = if ([string]::IsNullOrWhiteSpace($inputJiraToken)) { "" } else { $inputJiraToken.Trim() }
-
-# Confluence
-$defaultConfUrl = if ($env:CONFLUENCE_URL) { $env:CONFLUENCE_URL } else { "https://conf.cybertech.vn" }
-$inputConfUrl = Read-Host "Nhập Confluence URL [Mặc định: $defaultConfUrl] (Nhấn Enter để dùng mặc định, hoặc nhập URL khác)"
-$confUrl = if ([string]::IsNullOrWhiteSpace($inputConfUrl)) { $defaultConfUrl } else { $inputConfUrl.Trim() }
-
-$inputConfToken = Read-Host "Nhập Confluence Personal Token [Nhấn Enter để bỏ qua nếu không dùng Confluence]"
-$confToken = if ([string]::IsNullOrWhiteSpace($inputConfToken)) { "" } else { $inputConfToken.Trim() }
-
-# GitLab
-$defaultGitlabHost = if ($env:GITLAB_HOST) { $env:GITLAB_HOST } else { "10.30.1.17" }
-$inputGitlabHost = Read-Host "Nhập GitLab Host [Mặc định: $defaultGitlabHost] (Nhấn Enter để dùng mặc định, hoặc nhập Host khác)"
-$gitlabHost = if ([string]::IsNullOrWhiteSpace($inputGitlabHost)) { $defaultGitlabHost } else { $inputGitlabHost.Trim() }
-
-$inputGitlabToken = Read-Host "Nhập GitLab Personal Token [Nhấn Enter để bỏ qua nếu không dùng GitLab]"
-$gitlabToken = if ([string]::IsNullOrWhiteSpace($inputGitlabToken)) { "" } else { $inputGitlabToken.Trim() }
-
-# Context7
-$inputCtxKey = Read-Host "Nhập Context7 API Key [Nhấn Enter để bỏ qua nếu không dùng Context7]"
-$context7Key = if ([string]::IsNullOrWhiteSpace($inputCtxKey)) { "" } else { $inputCtxKey.Trim() }
-
-# 4. Tùy chọn Memorix
-Write-Host ""
-Write-Host "==> Kiểm tra tiện ích Memorix..." -ForegroundColor Cyan
-$existingMemorix = Get-Command "memorix" -ErrorAction SilentlyContinue
-$enableMemorixVal = $false
-
+Write-Host "==> Cấu hình tiện ích bổ sung..." -ForegroundColor Cyan
 if ($PSBoundParameters.ContainsKey('EnableMemorix')) {
     $enableMemorixVal = $EnableMemorix.IsPresent
 } elseif ($PSBoundParameters.ContainsKey('DisableMemorix')) {
     $enableMemorixVal = -not $DisableMemorix.IsPresent
-} elseif ($existingMemorix) {
-    Write-Host "==> Đã phát hiện Memorix trên máy (tại: $($existingMemorix.Source))." -ForegroundColor Green
-    Write-Host "==> Tự động kích hoạt và cập nhật Memorix lên phiên bản mới nhất..." -ForegroundColor Green
-    $enableMemorixVal = $true
 } else {
-    $memorixPrompt = Read-Host "Bạn có muốn cài đặt Memorix (MCP & Session Memory) không? [y/N]"
-    if (-not [string]::IsNullOrWhiteSpace($memorixPrompt) -and $memorixPrompt.Trim().ToLower() -eq 'y') {
+    $existingMemorix = Get-Command "memorix" -ErrorAction SilentlyContinue
+    if ($existingMemorix) {
+        Write-Host "==> Đã phát hiện Memorix trên hệ thống tại: $($existingMemorix.Source)" -ForegroundColor Green
+        Write-Host "    -> Tự động kích hoạt và cập nhật Memorix lên phiên bản mới nhất..." -ForegroundColor Cyan
         $enableMemorixVal = $true
-        Write-Host "==> Đã kích hoạt cài đặt Memorix." -ForegroundColor Green
     } else {
-        $enableMemorixVal = $false
-        Write-Host "==> Bỏ qua cài đặt Memorix (mặc định)." -ForegroundColor Yellow
+        $memorixPrompt = Read-Host "Bạn có muốn cài đặt Memorix (MCP & Session Memory) không? [y/N]"
+        if (-not [string]::IsNullOrWhiteSpace($memorixPrompt) -and $memorixPrompt.Trim().ToLower() -eq 'y') {
+            $enableMemorixVal = $true
+            Write-Host "==> Đã kích hoạt cài đặt Memorix." -ForegroundColor Green
+        } else {
+            $enableMemorixVal = $false
+            Write-Host "==> Bỏ qua cài đặt Memorix (mặc định)." -ForegroundColor Yellow
+        }
     }
 }
 
-# 5. Thiết lập biến môi trường phiên làm việc
+# 4. Thiết lập biến môi trường phiên làm việc
 $env:AI_BASE_URL = $aiBaseUrl
 $env:AI_API_KEY = $aiApiKey
-if ($jiraUrl) { $env:JIRA_URL = $jiraUrl }
-if ($jiraToken) { $env:JIRA_PERSONAL_TOKEN = $jiraToken }
-if ($confUrl) { $env:CONFLUENCE_URL = $confUrl }
-if ($confToken) { $env:CONFLUENCE_PERSONAL_TOKEN = $confToken }
-if ($gitlabHost) { $env:GITLAB_HOST = $gitlabHost }
-if ($gitlabToken) { $env:GITLAB_TOKEN = $gitlabToken }
-if ($context7Key) { $env:CONTEXT7_API_KEY = $context7Key }
 
 # Chuẩn bị nội dung file .env tạm thời
 $envContent = @"
 AI_BASE_URL=$aiBaseUrl
 AI_API_KEY=$aiApiKey
-JIRA_URL=$jiraUrl
-JIRA_PERSONAL_TOKEN=$jiraToken
-CONFLUENCE_URL=$confUrl
-CONFLUENCE_PERSONAL_TOKEN=$confToken
-CONTEXT7_API_KEY=$context7Key
-GITLAB_HOST=$gitlabHost
-GITLAB_TOKEN=$gitlabToken
 "@
 
 $zipUrl = "https://github.com/thanhpk6120/setup-claude-code/archive/refs/heads/main.zip"
