@@ -157,32 +157,51 @@ if (-not $SkipInstall -and -not (Get-Command "uv" -ErrorAction SilentlyContinue)
     }
 }
 
-# Cài đặt mcp-atlassian (kiểm tra phiên bản trước để tránh lỗi khóa file Windows)
+# Cài đặt mcp-atlassian (kiểm tra đa tầng để triệt để tránh lỗi khóa file Windows: os error 5 / Access is denied)
 if (-not $SkipInstall) {
     $targetAtlassianVer = "0.23.1"
-    $atlassianCmd = Get-Command "mcp-atlassian" -ErrorAction SilentlyContinue
     $needAtlassianInstall = $true
 
-    if ($atlassianCmd) {
+    # 1. Kiểm tra qua uv tool list
+    if (Get-Command "uv" -ErrorAction SilentlyContinue) {
         try {
-            $currentVer = (& mcp-atlassian --version 2>&1 | Out-String).Trim()
-            if ($currentVer -match $targetAtlassianVer) {
-                Write-Host "  -> mcp-atlassian==$targetAtlassianVer đã được cài đặt và đúng phiên bản. Bỏ qua cài đặt lại để tránh lỗi khóa file Windows (Access is denied / os error 5)." -ForegroundColor Green
+            $uvTools = (uv tool list 2>&1 | Out-String)
+            if ($uvTools -match "mcp-atlassian\s+v?$targetAtlassianVer" -or $uvTools -match "mcp-atlassian") {
+                Write-Host "  -> mcp-atlassian đã có sẵn trong uv tools. Bỏ qua cài đặt lại để tránh lỗi khóa file Windows (Access is denied / os error 5)." -ForegroundColor Green
                 $needAtlassianInstall = $false
             }
         } catch {}
     }
 
+    # 2. Kiểm tra qua file thực thi đã tồn tại trong AppData hoặc PATH
+    if ($needAtlassianInstall) {
+        $candidateExecutables = @(
+            (Join-Path $env:APPDATA "uv\tools\mcp-atlassian\Scripts\mcp-atlassian.exe"),
+            "$env:USERPROFILE\.local\bin\mcp-atlassian.exe"
+        )
+        foreach ($exe in $candidateExecutables) {
+            if (Test-Path $exe) {
+                Write-Host "  -> Tìm thấy mcp-atlassian tại '$exe'. Bỏ qua cài đặt lại để tránh xung đột khóa file." -ForegroundColor Green
+                $needAtlassianInstall = $false
+                break
+            }
+        }
+        if ($needAtlassianInstall -and (Get-Command "mcp-atlassian" -ErrorAction SilentlyContinue)) {
+            Write-Host "  -> mcp-atlassian đã có sẵn trong PATH. Bỏ qua cài đặt lại." -ForegroundColor Green
+            $needAtlassianInstall = $false
+        }
+    }
+
+    # 3. Chỉ cài đặt nếu thực sự chưa tồn tại
     if ($needAtlassianInstall) {
         Write-Host "==> Đang cài đặt mcp-atlassian==$targetAtlassianVer qua uv tool..." -ForegroundColor Cyan
         if (-not $DryRun -and (Get-Command "uv" -ErrorAction SilentlyContinue)) {
-            try {
-                uv tool install "mcp-atlassian==$targetAtlassianVer" --upgrade
-            } catch {
-                if ($_.Exception.Message -match "os error 5" -or $_.Exception.Message -match "Access is denied") {
-                    Write-Warning "Không thể ghi đè mcp-atlassian do tiến trình đang chạy ngầm trong hệ thống (Windows File Lock). Bản hiện tại vẫn sẽ được tiếp tục sử dụng."
+            $uvResult = (uv tool install "mcp-atlassian==$targetAtlassianVer" 2>&1 | Out-String)
+            if ($LASTEXITCODE -ne 0) {
+                if ($uvResult -match "os error 5" -or $uvResult -match "Access is denied") {
+                    Write-Warning "Không thể ghi đè mcp-atlassian do tiến trình đang chạy ngầm trong hệ thống (Windows File Lock). Phiên bản hiện tại vẫn sẽ được tiếp tục sử dụng bình thường."
                 } else {
-                    Write-Warning "Cài đặt mcp-atlassian gặp lỗi: $($_.Exception.Message)"
+                    Write-Warning "Cài đặt mcp-atlassian: $uvResult"
                 }
             }
         }
