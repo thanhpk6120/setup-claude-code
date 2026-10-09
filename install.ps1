@@ -37,22 +37,22 @@ if (-not $claudeCmd) {
         }
         Write-Host "==> Nhận diện terminal: $terminalType (PSVersion: $($PSVersionTable.PSVersion))." -ForegroundColor Cyan
 
-        # Kiểm tra node và npm trước khi cài đặt
-        Write-Host "==> Kiểm tra Node.js và npm..." -ForegroundColor Cyan
-        $nodeCmd = Get-Command "node" -ErrorAction SilentlyContinue
-        $npmCmd = Get-Command "npm" -ErrorAction SilentlyContinue
-        if (-not $nodeCmd -or -not $npmCmd) {
-            throw "Lỗi: Node.js và npm là bắt buộc để cài đặt Claude Code CLI. Vui lòng cài đặt Node.js (>= 22.18.0) trước."
+        Write-Host "==> Đang cài đặt Claude Code chính thức..." -ForegroundColor Cyan
+        $claudeInstalled = $false
+        try {
+            Write-Host "  -> Đang chạy installer chính thức của Anthropic (https://storage.googleapis.com/claude-code-dist/install.ps1)..." -ForegroundColor Cyan
+            & ([scriptblock]::Create((Invoke-RestMethod -Uri "https://storage.googleapis.com/claude-code-dist/install.ps1" -UseBasicParsing)))
+            $claudeInstalled = $true
+        } catch {
+            Write-Host "  [!] Installer chính thức gặp lỗi: $($_.Exception.Message)" -ForegroundColor Yellow
+            Write-Host "  -> Thử cài đặt qua npm: npm install -g @anthropic-ai/claude-code..." -ForegroundColor Cyan
+            if (Get-Command "npm" -ErrorAction SilentlyContinue) {
+                npm install -g @anthropic-ai/claude-code
+                $claudeInstalled = ($LASTEXITCODE -eq 0)
+            } else {
+                Write-Warning "Không tìm thấy npm trên hệ thống để cài đặt fallback."
+            }
         }
-
-        Write-Host "==> Đang cài đặt Claude Code chính gốc: npm install -g @anthropic-ai/claude-code..." -ForegroundColor Cyan
-        npm install -g @anthropic-ai/claude-code
-        if ($LASTEXITCODE -ne 0) {
-            Write-Warning "Cài đặt @anthropic-ai/claude-code trả về mã trạng thái: $LASTEXITCODE"
-        } else {
-            Write-Host "==> Cài đặt Claude Code CLI thành công!" -ForegroundColor Green
-        }
-
         # Nạp lại $env:PATH trong session hiện tại
         Write-Host "==> Đang nạp lại biến môi trường PATH trong session hiện tại..." -ForegroundColor Cyan
         $userPath = [Environment]::GetEnvironmentVariable("PATH", "User")
@@ -89,28 +89,18 @@ if (-not $claudeCmd) {
 # 2. Luồng hỏi tương tác cấu hình AI Provider
 Write-Host ""
 Write-Host "==> Cấu hình kết nối AI Provider..." -ForegroundColor Cyan
-$defaultAiUrl = if ($env:AI_BASE_URL) { $env:AI_BASE_URL } else { "http://localhost:20128/v1" }
+$defaultAiUrl = "http://localhost:20128/v1"
 $inputAiUrl = Read-Host "Nhập AI Base URL [Mặc định: $defaultAiUrl]"
 $aiBaseUrl = if ([string]::IsNullOrWhiteSpace($inputAiUrl)) { $defaultAiUrl } else { $inputAiUrl.Trim() }
 
-# AI_API_KEY: Bắt buộc nhập, không được có key mặc định. Vòng lặp bắt buộc.
+# AI_API_KEY: Mặc định không có, bắt buộc nhập
 $aiApiKey = ""
-if (-not [string]::IsNullOrWhiteSpace($env:AI_API_KEY)) {
-    $existingKeyHint = if ($env:AI_API_KEY.Length -gt 6) {
-        $env:AI_API_KEY.Substring(0, 4) + "..." + $env:AI_API_KEY.Substring($env:AI_API_KEY.Length - 2)
-    } else {
-        "******"
-    }
-    $inputKey = Read-Host "Nhập AI API Key (Bắt buộc) [Nhấn Enter để giữ giá trị hiện tại từ môi trường: $existingKeyHint]"
-    if ([string]::IsNullOrWhiteSpace($inputKey)) {
-        $aiApiKey = $env:AI_API_KEY.Trim()
-    } else {
-        $aiApiKey = $inputKey.Trim()
-    }
-}
-
 while ([string]::IsNullOrWhiteSpace($aiApiKey)) {
     if ([Console]::IsInputRedirected -or -not [Environment]::UserInteractive) {
+        if (-not [string]::IsNullOrWhiteSpace($env:AI_API_KEY)) {
+            $aiApiKey = $env:AI_API_KEY.Trim()
+            break
+        }
         throw "Lỗi: Đang chạy ở chế độ non-interactive nhưng AI API Key chưa được cung cấp qua biến môi trường `$env:AI_API_KEY`."
     }
     $inputKey = Read-Host "Nhập AI API Key (Bắt buộc)"
