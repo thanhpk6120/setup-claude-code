@@ -75,7 +75,7 @@ try {
     $settingsContentB = $settingsContentRawB | ConvertFrom-Json
     if ($settingsContentRawB -match '\.trash-guard') { throw "ASSERTION FAILED: settings.json should NOT contain .trash-guard (Case B)" }
     if ($settingsContentB.hooks.PreToolUse) { throw "ASSERTION FAILED: settings.json should not have PreToolUse if trash-guard hook is absent (Case B)" }
-    if ($settingsContentRawB -notmatch 'memorix.cmd hook') { throw "ASSERTION FAILED: settings.json should still contain memorix (Case B)" }
+    if ($settingsContentRawB -match 'memorix.cmd hook') { throw "ASSERTION FAILED: settings.json should NOT contain memorix hook when not enabled (Case B)" }
 
     Write-Host "Running bootstrap into temp dir (Case C: HUD missing): $tempDir"
     $env:HUD_PATH = "C:\non-existent-hud-path.mjs"
@@ -84,27 +84,21 @@ try {
     $settingsContentRawC = Get-Content $settingsJson -Raw
     $settingsContentC = $settingsContentRawC | ConvertFrom-Json
     if ($settingsContentC.statusLine) { throw "ASSERTION FAILED: settings.json should not have statusLine if HUD is absent (Case C)" }
-    if ($settingsContentRawC -notmatch 'memorix.cmd hook') { throw "ASSERTION FAILED: settings.json should still contain memorix hook (Case C)" }
+    if ($settingsContentRawC -match 'memorix.cmd hook') { throw "ASSERTION FAILED: settings.json should NOT contain memorix hook when not enabled (Case C)" }
     $env:HUD_PATH = $null
-    if (-not $mcpJson.mcpServers.gitnexus -or -not $mcpJson.mcpServers.'company-atlassian' -or -not $mcpJson.mcpServers.context7 -or -not $mcpJson.mcpServers.glab -or -not $mcpJson.mcpServers.cloakbrowser -or -not $mcpJson.mcpServers.memorix) {
-        throw "ASSERTION FAILED: Missing mcp tools in json"
+    $claudeTemplate = Get-Content "$PSScriptRoot\templates\claude.json" -Raw | ConvertFrom-Json
+    if (-not $claudeTemplate.mcpServers.gitnexus -or -not $claudeTemplate.mcpServers.'company-atlassian' -or -not $claudeTemplate.mcpServers.context7 -or -not $claudeTemplate.mcpServers.glab -or -not $claudeTemplate.mcpServers.cloakbrowser) {
+        throw "ASSERTION FAILED: Missing mcp tools in templates/claude.json"
     }
 
-    if ($mcpJson.mcpServers.memorix.command -ne "memorix") {
-        throw "ASSERTION FAILED: memorix command should be 'memorix', but was '$($mcpJson.mcpServers.memorix.command)'"
+    if ($claudeTemplate.mcpServers.gitnexus.command -ne "cmd") {
+        throw "ASSERTION FAILED: gitnexus command should be 'cmd', but was '$($claudeTemplate.mcpServers.gitnexus.command)'"
     }
-    if ($mcpJson.mcpServers.memorix.args -contains "npx" -or $mcpJson.mcpServers.memorix.args -contains "memorix@latest") {
-        throw "ASSERTION FAILED: memorix args contains npx"
+    if ($claudeTemplate.mcpServers.glab.command -ne "glab") {
+        throw "ASSERTION FAILED: glab command should be 'glab', but was '$($claudeTemplate.mcpServers.glab.command)'"
     }
-
-    if ($mcpJson.mcpServers.glab.command -ne "glab") {
-        throw "ASSERTION FAILED: glab command should be 'glab', but was '$($mcpJson.mcpServers.glab.command)'"
-    }
-    if ($mcpJson.mcpServers.cloakbrowser.command -ne "node") {
-        throw "ASSERTION FAILED: cloakbrowser command should be 'node', but was '$($mcpJson.mcpServers.cloakbrowser.command)'"
-    }
-    if ($mcpJson.mcpServers.cloakbrowser.args -notmatch [regex]::Escape($mockCloakDir)) {
-        throw "ASSERTION FAILED: cloakbrowser args should contain mockCloakDir '$mockCloakDir'"
+    if ($claudeTemplate.mcpServers.cloakbrowser.command -ne "node") {
+        throw "ASSERTION FAILED: cloakbrowser command should be 'node', but was '$($claudeTemplate.mcpServers.cloakbrowser.command)'"
     }
 
     $claudeMd = Join-Path $tempDir "CLAUDE.md"

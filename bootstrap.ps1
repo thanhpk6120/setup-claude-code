@@ -13,7 +13,7 @@ param(
 
 $ErrorActionPreference = "Stop"
 
-# Thư viện VisualBasic hỗ trợ chuyển file/thư mục vào Recycle Bin
+# Thu vien VisualBasic ho tro chuyen file/thu muc vao Recycle Bin
 Add-Type -AssemblyName Microsoft.VisualBasic
 
 function Move-ToRecycleBinDirectory([string]$Path) {
@@ -24,9 +24,9 @@ function Move-ToRecycleBinDirectory([string]$Path) {
                 [Microsoft.VisualBasic.FileIO.UIOption]::OnlyErrorDialogs,
                 [Microsoft.VisualBasic.FileIO.RecycleOption]::SendToRecycleBin
             )
-            Write-Host "  [Thùng rác] Đã chuyển thư mục vào Recycle Bin: $Path" -ForegroundColor DarkGray
+            Write-Host "  [Thung rac] Da chuyen thu muc vao Recycle Bin: $Path" -ForegroundColor DarkGray
         } catch {
-            Write-Warning "Không thể chuyển thư mục vào Recycle Bin: $Path ($($_.Exception.Message))"
+            Write-Warning "Khong the chuyen thu muc vao Recycle Bin: $Path ($($_.Exception.Message))"
         }
     }
 }
@@ -39,15 +39,19 @@ function Move-ToRecycleBinFile([string]$Path) {
                 [Microsoft.VisualBasic.FileIO.UIOption]::OnlyErrorDialogs,
                 [Microsoft.VisualBasic.FileIO.RecycleOption]::SendToRecycleBin
             )
-            Write-Host "  [Thùng rác] Đã chuyển file vào Recycle Bin: $Path" -ForegroundColor DarkGray
+            Write-Host "  [Thung rac] Da chuyen file vao Recycle Bin: $Path" -ForegroundColor DarkGray
         } catch {
-            Write-Warning "Không thể chuyển file vào Recycle Bin: $Path ($($_.Exception.Message))"
+            Write-Warning "Khong the chuyen file vao Recycle Bin: $Path ($($_.Exception.Message))"
         }
     }
 }
 
 function Confirm-McpInstall {
     param([string]$Name)
+    if ($Force -or $OverwriteAll) {
+        Write-Host "  -> [Force] Tu dong cai dat MCP '$Name'." -ForegroundColor Cyan
+        return $true
+    }
     if ($DryRun) {
         Write-Host "  -> [WhatIf] Bo qua prompt cai dat MCP '$Name'." -ForegroundColor DarkGray
         return $false
@@ -65,39 +69,11 @@ function Confirm-McpInstall {
     return $false
 }
 
-if (-not $PSBoundParameters.ContainsKey('EnableMemorix') -and -not $PSBoundParameters.ContainsKey('DisableMemorix')) {
-    $EnableMemorix = Confirm-McpInstall -Name "memorix"
-    if (-not $EnableMemorix) { Write-Host "Skipped MCP 'memorix' theo lua chon nguoi dung." -ForegroundColor Yellow }
-} elseif ($DisableMemorix.IsPresent) {
-    $EnableMemorix = $false
-    Write-Host "Skipped MCP 'memorix' theo lua chon nguoi dung." -ForegroundColor Yellow
-} else {
-    $EnableMemorix = $EnableMemorix.IsPresent
-}
-
-Write-Host "==> Xac nhan cai dat cac MCP Server khac..." -ForegroundColor Cyan
-$installAtlassian = Confirm-McpInstall -Name "company-atlassian"
-if (-not $installAtlassian) { Write-Host "Skipped MCP 'company-atlassian' theo lua chon nguoi dung." -ForegroundColor Yellow }
-
-$installGitnexus = Confirm-McpInstall -Name "gitnexus"
-if (-not $installGitnexus) { Write-Host "Skipped MCP 'gitnexus' theo lua chon nguoi dung." -ForegroundColor Yellow }
-
-$installContext7 = Confirm-McpInstall -Name "context7"
-if (-not $installContext7) { Write-Host "Skipped MCP 'context7' theo lua chon nguoi dung." -ForegroundColor Yellow }
-
-$installGlab = Confirm-McpInstall -Name "glab"
-if (-not $installGlab) { Write-Host "Skipped MCP 'glab' theo lua chon nguoi dung." -ForegroundColor Yellow }
-
-$installCloakbrowser = Confirm-McpInstall -Name "cloakbrowser"
-if (-not $installCloakbrowser) { Write-Host "Skipped MCP 'cloakbrowser' theo lua chon nguoi dung." -ForegroundColor Yellow }
-
-$isForce = $Force.IsPresent -or $OverwriteAll.IsPresent
-
-# Đọc cấu hình từ .env nếu tồn tại
+# Doc cau hinh tu .env neu ton tai
 $envMap = @{}
 $dotEnvPath = Join-Path $PSScriptRoot ".env"
 if (Test-Path $dotEnvPath) {
-    Write-Host "==> Đọc cấu hình từ file .env ($dotEnvPath)..." -ForegroundColor Cyan
+    Write-Host "==> Doc cau hinh tu file .env ($dotEnvPath)..." -ForegroundColor Cyan
     Get-Content $dotEnvPath -Encoding UTF8 | ForEach-Object {
         $line = $_.Trim()
         if ($line -and -not $line.StartsWith("#")) {
@@ -159,16 +135,16 @@ $nodeVerRaw = (node -v 2>$null | Out-String).Trim()
 try {
     $nodeVer = [version]($nodeVerRaw.TrimStart('v'))
 } catch {
-    throw "Không thể xác định version của Node.js: '$nodeVerRaw'"
+    throw "Khong the xac dinh version cua Node.js: '$nodeVerRaw'"
 }
 if ($nodeVer -lt [version]"22.18.0") {
     $toolsList = "gitnexus, context7"
     if ($EnableMemorix) { $toolsList = "memorix, gitnexus, context7" }
-    throw "Yêu cầu Node.js >= 22.18.0 (do $toolsList yêu cầu Node.js mới). Phiên bản hiện tại: '$nodeVerRaw'. Vui lòng nâng cấp Node.js."
+    throw "Yeu cau Node.js >= 22.18.0 (do $toolsList yeu cau Node.js moi). Phien ban hien tai: '$nodeVerRaw'. Vui long nang cap Node.js."
 }
 
 if ($installAtlassian) {
-    # Cài đặt uv
+    # Cai dat uv
     if (-not $SkipInstall -and -not (Get-Command "uv" -ErrorAction SilentlyContinue)) {
         Write-Host "==> 'uv' not found. Installing uv..." -ForegroundColor Cyan
         if (-not $DryRun) {
@@ -182,23 +158,23 @@ if ($installAtlassian) {
         }
     }
 
-    # Cài đặt mcp-atlassian (kiểm tra đa tầng để triệt để tránh lỗi khóa file Windows: os error 5 / Access is denied)
+    # Cai dat mcp-atlassian (kiem tra da tang de triet de tranh loi khoa file Windows: os error 5 / Access is denied)
     if (-not $SkipInstall) {
         $targetAtlassianVer = "0.23.1"
         $needAtlassianInstall = $true
 
-        # 1. Kiểm tra qua uv tool list
+        # 1. Kiem tra qua uv tool list
         if (Get-Command "uv" -ErrorAction SilentlyContinue) {
             try {
                 $uvTools = (uv tool list 2>&1 | Out-String)
                 if ($uvTools -match "mcp-atlassian\s+v?$targetAtlassianVer" -or $uvTools -match "mcp-atlassian") {
-                    Write-Host "  -> mcp-atlassian đã có sẵn trong uv tools. Bỏ qua cài đặt lại để tránh lỗi khóa file Windows (Access is denied / os error 5)." -ForegroundColor Green
+                    Write-Host "  -> mcp-atlassian da co san trong uv tools. Bo qua cai dat lai de tranh loi khoa file Windows (Access is denied / os error 5)." -ForegroundColor Green
                     $needAtlassianInstall = $false
                 }
             } catch {}
         }
 
-        # 2. Kiểm tra qua file thực thi đã tồn tại trong AppData hoặc PATH
+        # 2. Kiem tra qua file thuc thi da ton tai trong AppData hoac PATH
         if ($needAtlassianInstall) {
             $candidateExecutables = @(
                 (Join-Path $env:APPDATA "uv\tools\mcp-atlassian\Scripts\mcp-atlassian.exe"),
@@ -206,27 +182,27 @@ if ($installAtlassian) {
             )
             foreach ($exe in $candidateExecutables) {
                 if (Test-Path $exe) {
-                    Write-Host "  -> Tìm thấy mcp-atlassian tại '$exe'. Bỏ qua cài đặt lại để tránh xung đột khóa file." -ForegroundColor Green
+                    Write-Host "  -> Tim thay mcp-atlassian tai '$exe'. Bo qua cai dat lai de tranh xung dot khoa file." -ForegroundColor Green
                     $needAtlassianInstall = $false
                     break
                 }
             }
             if ($needAtlassianInstall -and (Get-Command "mcp-atlassian" -ErrorAction SilentlyContinue)) {
-                Write-Host "  -> mcp-atlassian đã có sẵn trong PATH. Bỏ qua cài đặt lại." -ForegroundColor Green
+                Write-Host "  -> mcp-atlassian da co san trong PATH. Bo qua cai dat lai." -ForegroundColor Green
                 $needAtlassianInstall = $false
             }
         }
 
-        # 3. Chỉ cài đặt nếu thực sự chưa tồn tại
+        # 3. Chi cai dat neu thuc su chua ton tai
         if ($needAtlassianInstall) {
-            Write-Host "==> Đang cài đặt mcp-atlassian==$targetAtlassianVer qua uv tool..." -ForegroundColor Cyan
+            Write-Host "==> Dang cai dat mcp-atlassian==$targetAtlassianVer qua uv tool..." -ForegroundColor Cyan
             if (-not $DryRun -and (Get-Command "uv" -ErrorAction SilentlyContinue)) {
                 $uvResult = (uv tool install "mcp-atlassian==$targetAtlassianVer" 2>&1 | Out-String)
                 if ($LASTEXITCODE -ne 0) {
                     if ($uvResult -match "os error 5" -or $uvResult -match "Access is denied") {
-                        Write-Warning "Không thể ghi đè mcp-atlassian do tiến trình đang chạy ngầm trong hệ thống (Windows File Lock). Phiên bản hiện tại vẫn sẽ được tiếp tục sử dụng bình thường."
+                        Write-Warning "Khong the ghi de mcp-atlassian do tien trinh dang chay ngam trong he thong (Windows File Lock). Phien ban hien tai van se duoc tiep tuc su dung binh thuong."
                     } else {
-                        Write-Warning "Cài đặt mcp-atlassian: $uvResult"
+                        Write-Warning "Cai dat mcp-atlassian: $uvResult"
                     }
                 }
             }
@@ -234,7 +210,7 @@ if ($installAtlassian) {
     }
 }
 
-# Cài đặt glab
+# Cai dat glab
 if ($installGlab) {
     if (-not $SkipInstall -and -not (Get-Command "glab" -ErrorAction SilentlyContinue)) {
         Write-Host "==> Installing glab globally..." -ForegroundColor Cyan
@@ -247,16 +223,16 @@ if ($installGlab) {
     }
 }
 
-# Cài đặt / cập nhật memorix (khi $EnableMemorix = $true)
+# Cai dat / cap nhat memorix (khi $EnableMemorix = $true)
 $shouldSetupHook = $false
 if ($EnableMemorix) {
     if (-not $SkipInstall) {
-        Write-Host "==> Đang cài đặt / cập nhật Memorix lên phiên bản mới nhất (npm install -g memorix)..." -ForegroundColor Cyan
+        Write-Host "==> Dang cai dat / cap nhat Memorix len phien ban moi nhat (npm install -g memorix)..." -ForegroundColor Cyan
         if (-not $DryRun) {
             try {
                 npm install -g memorix
             } catch {
-                Write-Warning "Cài đặt/cập nhật Memorix gặp lỗi: $($_.Exception.Message)"
+                Write-Warning "Cai dat/cap nhat Memorix gap loi: $($_.Exception.Message)"
             }
         }
     }
@@ -278,7 +254,7 @@ if ($EnableMemorix) {
     }
 }
 
-# Cài đặt gitnexus
+# Cai dat gitnexus
 $absGn = ""
 if ($installGitnexus) {
     if (-not $SkipInstall) {
@@ -296,10 +272,10 @@ if ($installGitnexus) {
             $gnPath = $cmdCandidate
         }
     }
-    if (-not $gnPath) { throw "Lỗi: Không tìm thấy gitnexus." }
+    if (-not $gnPath) { throw "Loi: Khong tim thay gitnexus." }
     $absGn = $gnPath.Replace('\', '\\')
 }
-# Cài đặt context7
+# Cai dat context7
 $absCtx2 = ""
 if ($installContext7) {
     if (-not $SkipInstall) {
@@ -318,14 +294,14 @@ if ($installContext7) {
         if (Test-Path $ctxP2) {
             $absCtx2 = ($ctxP2).Replace('\', '\\')
         } else {
-            throw "Lỗi: Không tìm thấy file dist\index.js của context7. Dừng cài đặt."
+            throw "Loi: Khong tim thay file dist\index.js cua context7. Dung cai dat."
         }
     } else {
-        throw "Lỗi: Không tìm thấy thư mục npm root -g để lấy đường dẫn context7. Dừng cài đặt."
+        throw "Loi: Khong tim thay thu muc npm root -g de lay duong dan context7. Dung cai dat."
     }
 }
 
-# Cấu hình CloakBrowser
+# Cau hinh CloakBrowser
 function Get-CloakBrowserInstallDir {
     if ($env:CLOAKBROWSER_DIR) { return $env:CLOAKBROWSER_DIR }
     $defaultLetter = "D:"
@@ -408,15 +384,8 @@ function Setup-CloakBrowser {
     return $mainScript
 }
 
-$cloakScript = ""
-if ($installCloakbrowser) {
-    $cbSourceDir = Join-Path $PSScriptRoot "mcp-servers\cloakbrowser"
-    $cbTargetDir = Get-CloakBrowserInstallDir
-    $cloakScriptPath = Setup-CloakBrowser -TargetDir $cbTargetDir -SourceDir $cbSourceDir -DryRun:$DryRun -SkipInstall:$SkipInstall
-    $cloakScript = ($cloakScriptPath).Replace('\', '\\')
-}
 
-# Thu thập cấu hình
+# Thu thap cau hinh
 $aiBaseUrl = Get-EnvOrPrompt -EnvName "AI_BASE_URL" -Prompt "AI Base URL" -Default "http://localhost:20128/v1"
 $aiKey = Get-EnvOrPrompt -EnvName "AI_API_KEY" -Prompt "AI API Key" -Required
 
@@ -442,7 +411,7 @@ if ($installGlab) {
     $gitlabHost  = Get-EnvOrPrompt -EnvName "GITLAB_HOST" -Prompt "GitLab Host" -Default "10.30.1.17"
     $gitlabToken = Get-EnvOrPrompt -EnvName "GITLAB_TOKEN" -Prompt "GitLab Personal Token" -AllowEmpty
 
-    # Xác thực glab nếu có token
+    # Xac thuc glab neu co token
     if (-not [string]::IsNullOrWhiteSpace($gitlabToken) -and -not $DryRun) {
         Write-Host "==> Configuring GitLab authentication for host '$gitlabHost'..." -ForegroundColor Cyan
         $proto = "https"
@@ -460,9 +429,17 @@ if ($installGlab) {
     }
 }
 
-# Chuẩn bị đường dẫn gitnexus
+$cloakScript = ""
+if ($installCloakbrowser) {
+    $cbSourceDir = Join-Path $PSScriptRoot "mcp-servers\cloakbrowser"
+    $cbTargetDir = Get-CloakBrowserInstallDir
+    $cloakScriptPath = Setup-CloakBrowser -TargetDir $cbTargetDir -SourceDir $cbSourceDir -DryRun:$DryRun -SkipInstall:$SkipInstall
+    $cloakScript = ($cloakScriptPath).Replace('\', '\\')
+}
+
+# Chuan bi duong dan gitnexus
 $escapedGitnexus = if ($absGn) { $absGn } elseif ($gn -and $gn.Source) { ($gn.Source).Replace('\', '\\') } else { "" }
-# Xử lý claude.json (hoặc mcp.json)
+# Xu ly claude.json (hoac mcp.json)
 $templatesDir = Join-Path $PSScriptRoot "templates"
 $claudeTemplatePath = Join-Path $templatesDir "claude.json"
 if (-not (Test-Path $claudeTemplatePath)) { $claudeTemplatePath = Join-Path $templatesDir "mcp.json" }
@@ -520,7 +497,7 @@ if (-not $mcpObj.mcpServers) {
     $mcpObj | Add-Member -MemberType NoteProperty -Name 'mcpServers' -Value ([PSCustomObject]@{}) -Force
 }
 
-# Lọc bỏ các MCP Server bị từ chối cài đặt
+# Loc bo cac MCP Server bi tu choi cai dat
 if (-not $installAtlassian -and $mcpObj.mcpServers.PSObject.Properties['company-atlassian']) {
     $mcpObj.mcpServers.PSObject.Properties.Remove('company-atlassian')
 }
@@ -540,7 +517,7 @@ if ($installContext7 -and [string]::IsNullOrWhiteSpace($ctxKey) -and $mcpObj.mcp
     $mcpObj.mcpServers.context7.PSObject.Properties.Remove('env')
 }
 
-# Xử lý server memorix trong mcpServers
+# Xu ly server memorix trong mcpServers
 if ($EnableMemorix) {
     $memorixMcp = [PSCustomObject]@{
         command = "memorix"
@@ -560,15 +537,15 @@ if ($DryRun -and [string]::IsNullOrWhiteSpace($env:ANTHROPIC_API_KEY)) {
     $env:ANTHROPIC_API_KEY = "dryrun-placeholder-key"
 }
 
-# Ghi / Merge cấu hình vào $ClaudeJson
-Write-Host "==> Xử lý cấu hình $ClaudeJson..." -ForegroundColor Cyan
+# Ghi / Merge cau hinh vao $ClaudeJson
+Write-Host "==> Xu ly cau hinh $ClaudeJson..." -ForegroundColor Cyan
 if (Test-Path $ClaudeJson) {
     $bakJsonPath = "$ClaudeJson.bak"
     if ($isForce) {
-        Write-Host "  -> File '$ClaudeJson' đã tồn tại. [-Force / -OverwriteAll] Tự động sao lưu và ghi đè." -ForegroundColor Yellow
+        Write-Host "  -> File '$ClaudeJson' da ton tai. [-Force / -OverwriteAll] Tu dong sao luu va ghi de." -ForegroundColor Yellow
         if (-not $DryRun) {
             Copy-Item -Path $ClaudeJson -Destination $bakJsonPath -Force
-            Write-Host "     Đã sao lưu sang $bakJsonPath" -ForegroundColor DarkGray
+            Write-Host "     Da sao luu sang $bakJsonPath" -ForegroundColor DarkGray
             $existing = (Get-Content $ClaudeJson -Raw -Encoding UTF8) | ConvertFrom-Json
             if (-not $existing) { $existing = [PSCustomObject]@{} }
             $existing | Add-Member -MemberType NoteProperty -Name 'mcpServers' -Value $mcpObj.mcpServers -Force
@@ -578,17 +555,17 @@ if (Test-Path $ClaudeJson) {
     } else {
         $choice = ""
         if ([Environment]::UserInteractive -and -not [Console]::IsInputRedirected) {
-            $choice = Read-Host "[?] File '$ClaudeJson' đã tồn tại. Bạn có muốn [O]verwrite (ghi đè), [M]erge (hợp nhất cấu hình cũ và mới), hay [S]kip (bỏ qua)? [O/M/s]"
+            $choice = Read-Host "[?] File '$ClaudeJson' da ton tai. Ban co muon [O]verwrite (ghi de), [M]erge (hop nhat cau hinh cu va moi), hay [S]kip (bo qua)? [O/M/s]"
             $choice = if ($choice) { $choice.Trim() } else { "" }
         } else {
             $choice = "M"
         }
 
         if ($choice -match '^[mM]$' -or ($choice -eq "" -and (-not [Environment]::UserInteractive -or [Console]::IsInputRedirected))) {
-            Write-Host "  -> Đang hợp nhất cấu hình MCP vào $ClaudeJson (sao lưu sang $bakJsonPath)..." -ForegroundColor Cyan
+            Write-Host "  -> Dang hop nhat cau hinh MCP vao $ClaudeJson (sao luu sang $bakJsonPath)..." -ForegroundColor Cyan
             if (-not $DryRun) {
                 Copy-Item -Path $ClaudeJson -Destination $bakJsonPath -Force
-                Write-Host "     Đã sao lưu sang $bakJsonPath" -ForegroundColor DarkGray
+                Write-Host "     Da sao luu sang $bakJsonPath" -ForegroundColor DarkGray
                 try {
                     $existing = (Get-Content $ClaudeJson -Raw -Encoding UTF8) | ConvertFrom-Json
                     if (-not $existing) { $existing = [PSCustomObject]@{} }
@@ -603,16 +580,16 @@ if (Test-Path $ClaudeJson) {
                     }
                     $outJson = $existing | ConvertTo-Json -Depth 10
                     [System.IO.File]::WriteAllText($ClaudeJson, $outJson, [System.Text.UTF8Encoding]::new($false))
-                    Write-Host "     Hợp nhất mcpServers thành công." -ForegroundColor Green
+                    Write-Host "     Hop nhat mcpServers thanh cong." -ForegroundColor Green
                 } catch {
-                    Write-Warning "Lỗi khi hợp nhất cấu hình ${ClaudeJson}: $($_.Exception.Message)"
+                    Write-Warning "Loi khi hop nhat cau hinh ${ClaudeJson}: $($_.Exception.Message)"
                 }
             }
         } elseif ($choice -match '^[oO]$') {
-            Write-Host "  -> Ghi đè mcpServers trong $ClaudeJson (sao lưu sang $bakJsonPath)..." -ForegroundColor Green
+            Write-Host "  -> Ghi de mcpServers trong $ClaudeJson (sao luu sang $bakJsonPath)..." -ForegroundColor Green
             if (-not $DryRun) {
                 Copy-Item -Path $ClaudeJson -Destination $bakJsonPath -Force
-                Write-Host "     Đã sao lưu sang $bakJsonPath" -ForegroundColor DarkGray
+                Write-Host "     Da sao luu sang $bakJsonPath" -ForegroundColor DarkGray
                 $existing = (Get-Content $ClaudeJson -Raw -Encoding UTF8) | ConvertFrom-Json
                 if (-not $existing) { $existing = [PSCustomObject]@{} }
                 $existing | Add-Member -MemberType NoteProperty -Name 'mcpServers' -Value $mcpObj.mcpServers -Force
@@ -620,7 +597,7 @@ if (Test-Path $ClaudeJson) {
                 [System.IO.File]::WriteAllText($ClaudeJson, $outJson, [System.Text.UTF8Encoding]::new($false))
             }
         } else {
-            Write-Host "  -> Bỏ qua $ClaudeJson (giữ nguyên file hiện tại)." -ForegroundColor Yellow
+            Write-Host "  -> Bo qua $ClaudeJson (giu nguyen file hien tai)." -ForegroundColor Yellow
         }
     }
 } else {
@@ -633,7 +610,7 @@ if (Test-Path $ClaudeJson) {
     }
 }
 
-# Đảm bảo các thư mục hỗ trợ
+# Dam bao cac thu muc ho tro
 $userProfileFwd = $env:USERPROFILE.Replace('\', '/')
 $targetTrashGuard = Join-Path $env:USERPROFILE ".trash-guard"
 if (-not $DryRun) {
@@ -644,7 +621,7 @@ if (-not $DryRun) {
     if (Test-Path $srcTrashGuard) {
         Copy-Item -Path "$srcTrashGuard\*" -Destination $targetTrashGuard -Force -Recurse
     }
-    # Dọn dẹp tuyệt đối PowerShell Profile: Đảm bảo terminal của người dùng sạch sẽ 100%
+    # Don dep tuyet doi PowerShell Profile: Dam bao terminal cua nguoi dung sach se 100%
     $profileCandidates = @(
         "$env:USERPROFILE\Documents\PowerShell\Microsoft.PowerShell_profile.ps1",
         "$env:USERPROFILE\Documents\WindowsPowerShell\Microsoft.PowerShell_profile.ps1",
@@ -657,7 +634,7 @@ if (-not $DryRun) {
             if ($profContent -match "trash-guard") {
                 $cleanedProf = ($profContent -split "`r?`n" | Where-Object { $_ -notmatch "trash-guard" }) -join "`r`n"
                 [System.IO.File]::WriteAllText($profPath, $cleanedProf.Trim() + "`r`n", [System.Text.UTF8Encoding]::new($false))
-                Write-Host "  -> Đã gỡ bỏ hook trash-guard khỏi PowerShell Profile ($profPath) để giữ terminal sạch sẽ 100%." -ForegroundColor Green
+                Write-Host "  -> Da go bo hook trash-guard khoi PowerShell Profile ($profPath) de giu terminal sach se 100%." -ForegroundColor Green
             }
         }
     }
@@ -695,7 +672,7 @@ $orcaHookPath = Join-Path $env:USERPROFILE ".orca/agent-hooks/claude-hook.cmd"
 if ($env:ORCA_HOOK_PATH) { $orcaHookPath = $env:ORCA_HOOK_PATH }
 $hasOrca = Test-Path $orcaHookPath
 
-# Xây dựng hooks cho settings.json
+# Xay dung hooks cho settings.json
 $hooksObj = [ordered]@{}
 
 # SessionStart
@@ -894,7 +871,7 @@ if ($hasOrca) {
     })
 }
 
-# Cấu hình settings.json
+# Cau hinh settings.json
 $settingsTemplatePath = Join-Path $templatesDir "settings.json"
 $targetSettingsPath = Join-Path $ClaudeDir "settings.json"
 
@@ -938,31 +915,31 @@ if ($hooksObj.Count -gt 0) {
     $settingsObj["hooks"] = $hooksObj
 }
 
-Write-Host "==> Xử lý cấu hình $targetSettingsPath..." -ForegroundColor Cyan
+Write-Host "==> Xu ly cau hinh $targetSettingsPath..." -ForegroundColor Cyan
 if (Test-Path $targetSettingsPath) {
     $bakSettingsPath = "$targetSettingsPath.bak"
     if ($isForce) {
-        Write-Host "  -> File '$targetSettingsPath' đã tồn tại. [-Force / -OverwriteAll] Tự động sao lưu và ghi đè." -ForegroundColor Yellow
+        Write-Host "  -> File '$targetSettingsPath' da ton tai. [-Force / -OverwriteAll] Tu dong sao luu va ghi de." -ForegroundColor Yellow
         if (-not $DryRun) {
             Copy-Item -Path $targetSettingsPath -Destination $bakSettingsPath -Force
-            Write-Host "     Đã sao lưu sang $bakSettingsPath" -ForegroundColor DarkGray
+            Write-Host "     Da sao luu sang $bakSettingsPath" -ForegroundColor DarkGray
             $outSettingsJson = $settingsObj | ConvertTo-Json -Depth 10
             [System.IO.File]::WriteAllText($targetSettingsPath, $outSettingsJson, [System.Text.UTF8Encoding]::new($false))
         }
     } else {
         $choice = ""
         if ([Environment]::UserInteractive -and -not [Console]::IsInputRedirected) {
-            $choice = Read-Host "[?] File '$targetSettingsPath' đã tồn tại. Bạn có muốn [O]verwrite (ghi đè), [M]erge (hợp nhất cấu hình cũ và mới), hay [S]kip (bỏ qua)? [O/M/s]"
+            $choice = Read-Host "[?] File '$targetSettingsPath' da ton tai. Ban co muon [O]verwrite (ghi de), [M]erge (hop nhat cau hinh cu va moi), hay [S]kip (bo qua)? [O/M/s]"
             $choice = if ($choice) { $choice.Trim() } else { "" }
         } else {
             $choice = "M"
         }
 
         if ($choice -match '^[mM]$' -or ($choice -eq "" -and (-not [Environment]::UserInteractive -or [Console]::IsInputRedirected))) {
-            Write-Host "  -> Đang hợp nhất cấu hình $targetSettingsPath (sao lưu sang $bakSettingsPath)..." -ForegroundColor Cyan
+            Write-Host "  -> Dang hop nhat cau hinh $targetSettingsPath (sao luu sang $bakSettingsPath)..." -ForegroundColor Cyan
             if (-not $DryRun) {
                 Copy-Item -Path $targetSettingsPath -Destination $bakSettingsPath -Force
-                Write-Host "     Đã sao lưu sang $bakSettingsPath" -ForegroundColor DarkGray
+                Write-Host "     Da sao luu sang $bakSettingsPath" -ForegroundColor DarkGray
                 try {
                     $existingSettings = (Get-Content $targetSettingsPath -Raw -Encoding UTF8) | ConvertFrom-Json
                     if (-not $existingSettings) { $existingSettings = [PSCustomObject]@{} }
@@ -994,21 +971,21 @@ if (Test-Path $targetSettingsPath) {
 
                     $outMerged = $existingSettings | ConvertTo-Json -Depth 10
                     [System.IO.File]::WriteAllText($targetSettingsPath, $outMerged, [System.Text.UTF8Encoding]::new($false))
-                    Write-Host "     Hợp nhất settings.json thành công." -ForegroundColor Green
+                    Write-Host "     Hop nhat settings.json thanh cong." -ForegroundColor Green
                 } catch {
-                    Write-Warning "Lỗi khi hợp nhất settings.json: $($_.Exception.Message)"
+                    Write-Warning "Loi khi hop nhat settings.json: $($_.Exception.Message)"
                 }
             }
         } elseif ($choice -match '^[oO]$') {
-            Write-Host "  -> Ghi đè file $targetSettingsPath (đã sao lưu sang $bakSettingsPath)" -ForegroundColor Green
+            Write-Host "  -> Ghi de file $targetSettingsPath (da sao luu sang $bakSettingsPath)" -ForegroundColor Green
             if (-not $DryRun) {
                 Copy-Item -Path $targetSettingsPath -Destination $bakSettingsPath -Force
-                Write-Host "     Đã sao lưu sang $bakSettingsPath" -ForegroundColor DarkGray
+                Write-Host "     Da sao luu sang $bakSettingsPath" -ForegroundColor DarkGray
                 $outSettingsJson = $settingsObj | ConvertTo-Json -Depth 10
                 [System.IO.File]::WriteAllText($targetSettingsPath, $outSettingsJson, [System.Text.UTF8Encoding]::new($false))
             }
         } else {
-            Write-Host "  -> Bỏ qua $targetSettingsPath (giữ nguyên file hiện tại)." -ForegroundColor Yellow
+            Write-Host "  -> Bo qua $targetSettingsPath (giu nguyen file hien tai)." -ForegroundColor Yellow
         }
     }
 } else {
@@ -1018,8 +995,8 @@ if (Test-Path $targetSettingsPath) {
     }
 }
 
-# Xử lý CLAUDE.md
-Write-Host "==> Cập nhật CLAUDE.md tại $ClaudeDir..." -ForegroundColor Cyan
+# Xu ly CLAUDE.md
+Write-Host "==> Cap nhat CLAUDE.md tai $ClaudeDir..." -ForegroundColor Cyan
 $claudeMdTemplatePath = Join-Path $templatesDir "CLAUDE.md"
 $claudeMdContent = ""
 if (Test-Path $claudeMdTemplatePath) {
@@ -1052,7 +1029,7 @@ if (Test-Path $targetClaudeMd) {
     } else {
         $choice = ""
         if ([Environment]::UserInteractive -and -not [Console]::IsInputRedirected) {
-            $choice = Read-Host "[?] File '$targetClaudeMd' đã tồn tại. Bạn có muốn [O]verwrite (ghi đè) hay [S]kip (bỏ qua)? [O/s]"
+            $choice = Read-Host "[?] File '$targetClaudeMd' da ton tai. Ban co muon [O]verwrite (ghi de) hay [S]kip (bo qua)? [O/s]"
             $choice = if ($choice) { $choice.Trim() } else { "" }
         } else {
             $choice = "O"
@@ -1070,23 +1047,23 @@ if (Test-Path $targetClaudeMd) {
     }
 }
 
-# Dọn dẹp các tài liệu cũ không còn dùng và chuyển vào Thùng rác (Recycle Bin)
+# Don dep cac tai lieu cu khong con dung va chuyen vao Thung rac (Recycle Bin)
 $legacyFiles = @("SYSTEM.md", "AGENTS.md", "RULES.md")
 foreach ($leg in $legacyFiles) {
     $oldFilePath = Join-Path $ClaudeDir $leg
     if (Test-Path $oldFilePath) {
-        Write-Host "==> Dọn dẹp tài liệu cũ: $oldFilePath (chuyển vào Thùng rác)..." -ForegroundColor Cyan
+        Write-Host "==> Don dep tai lieu cu: $oldFilePath (chuyen vao Thung rac)..." -ForegroundColor Cyan
         if (-not $DryRun) {
             Move-ToRecycleBinFile -Path $oldFilePath
         }
     }
 }
 
-# Xử lý thư mục skills
+# Xu ly thu muc skills
 $srcSkillsDir = Join-Path $PSScriptRoot "skills"
 $targetSkillsDir = Join-Path $ClaudeDir "skills"
 if (Test-Path $srcSkillsDir) {
-    Write-Host "==> Đồng bộ skills vào $targetSkillsDir..." -ForegroundColor Cyan
+    Write-Host "==> Dong bo skills vao $targetSkillsDir..." -ForegroundColor Cyan
     if (-not (Test-Path $targetSkillsDir) -and -not $DryRun) {
         New-Item -ItemType Directory -Path $targetSkillsDir -Force | Out-Null
     }
@@ -1106,11 +1083,11 @@ if (Test-Path $srcSkillsDir) {
         }
     }
 
-    # Nếu $EnableMemorix = $false: gỡ bỏ các thư mục skills memorix-* đã tồn tại trước đó sang Thùng rác
+    # Neu $EnableMemorix = $false: go bo cac thu muc skills memorix-* da ton tai truoc do sang Thung rac
     if (-not $EnableMemorix -and (Test-Path $targetSkillsDir)) {
         $existingMemorixSkills = Get-ChildItem -Path $targetSkillsDir -Directory -Filter "memorix-*"
         foreach ($ems in $existingMemorixSkills) {
-            Write-Host "==> Gỡ bỏ skill memorix cũ: $($ems.FullName) (chuyển vào Thùng rác)..." -ForegroundColor Cyan
+            Write-Host "==> Go bo skill memorix cu: $($ems.FullName) (chuyen vao Thung rac)..." -ForegroundColor Cyan
             if (-not $DryRun) {
                 Move-ToRecycleBinDirectory -Path $ems.FullName
             }
@@ -1118,4 +1095,4 @@ if (Test-Path $srcSkillsDir) {
     }
 }
 
-Write-Host "==> Hoàn tất thiết lập môi trường Claude Code!" -ForegroundColor Green
+Write-Host "==> Hoan tat thiet lap moi truong Claude Code!" -ForegroundColor Green
