@@ -638,7 +638,8 @@ if (Test-Path $ClaudeJson) {
     }
 }
 
-# Dam bao cac thu muc ho tro
+# Dam bao cac thu muc ho tro va cai dat Trash Guard
+Write-Host "==> Cai dat Trash Guard (bao ve chan xoa cung cho Claude Code)..." -ForegroundColor Cyan
 $userProfileFwd = $env:USERPROFILE.Replace('\', '/')
 $targetTrashGuard = Join-Path $env:USERPROFILE ".trash-guard"
 if (-not $DryRun) {
@@ -648,7 +649,12 @@ if (-not $DryRun) {
     $srcTrashGuard = Join-Path $PSScriptRoot "trash-guard"
     if (Test-Path $srcTrashGuard) {
         Copy-Item -Path "$srcTrashGuard\*" -Destination $targetTrashGuard -Force -Recurse
+        Write-Host "  -> Sao chep cac script Trash Guard sang $targetTrashGuard..." -ForegroundColor Green
     }
+}
+Write-Host "  -> Kich hoat PreToolUse hook trong settings.json de chan cac lenh xoa cung (rm, del, Remove-Item)..." -ForegroundColor Green
+Write-Host "  -> Hoan tat kich hoat Trash Guard cho Claude Code." -ForegroundColor Green
+if (-not $DryRun) {
     # Don dep tuyet doi PowerShell Profile: Dam bao terminal cua nguoi dung sach se 100%
     $profileCandidates = @(
         "$env:USERPROFILE\Documents\PowerShell\Microsoft.PowerShell_profile.ps1",
