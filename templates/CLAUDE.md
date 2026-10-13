@@ -5,9 +5,7 @@
 > **QUY TẮC TIÊN QUYẾT Ở ĐẦU (MANDATORY PREREQUISITE):** TẤT CẢ các lệnh xoá file/thư mục BẮT BUỘC phải dùng cách di chuyển nó vào thùng rác (Trash / Recycle Bin), TUYỆT ĐỐI KHÔNG ĐƯỢC xoá luôn/xóa vĩnh viễn.
 
 ## 0. PRECEDENCE, DELEGATION, SKILLS & PLUGINS/MCP [MANDATORY PRE-FLIGHT — NEVER SKIP]
-
-**[CRITICAL INVARIANT]** You MUST explicitly analyze the incoming request upfront to determine task complexity, applicable Skills, and applicable Plugins/MCP tools. Decide whether to spawn specialized subagents or use the main agent directly. You CANNOT skip this step.
-- **PRECEDENCE RULE:** Delegation, Skill, and Plugin/MCP Orchestration rules ALWAYS OVERRIDE "Think Before Coding", "Simplicity", and "Goal-Driven". Whenever a task involves ≥2 steps, multi-file scope, or investigation, delegation is MANDATORY. "Simplicity" and "Goal-Driven" apply *within* the subagent's scope, NOT as an excuse for the Main Agent to do everything directly.
+- **PRECEDENCE RULE:** Main Agent là người thực thi chính (Default: Direct Execution). KHÔNG lạm dụng spawn subagent cho các tác vụ thông thường, tuần tự hoặc các chỉnh sửa có phạm vi rõ ràng. Chỉ spawn subagent khi gặp các tác vụ ĐẶC THÙ / CHUYÊN BIỆT thực sự cần thiết (ví dụ: song song hoá nhiều nhánh độc lập, chạy test/gate review độc lập, phân tích diện rộng nhiều repository/service, hoặc khi người dùng yêu cầu rõ ràng).
 - **OUTPUT PREFIX (MANDATORY BEFORE ANY TOOL CALL):**
   The Main Agent MUST output a reasoning line before calling ANY tool:
   `[Pre-flight] Tier: 1/2/3 | Skills: <Skill name(s) or None> | Plugins/MCP: <Plugin/MCP tool(s) or None> | Rationale: <reason> | Action: <Direct / Single Subagent / Parallel Subagents>`
@@ -16,11 +14,10 @@
 - **Mandatory Skills Resolution:** Scan and apply matching skills from `skills/*/SKILL.md` (e.g. `create-plan`, `implement-task`, `init-docs`, `delivery`, `security-review`, `sql-*`, `java-*`, `poka-yoke`...). Never invent ad-hoc procedures when an established skill exists.
 - **Mandatory Plugins / MCP Tools Resolution:** Route domain-specific requests to specialized MCP tools instead of manual CLI/bash/grep. Luôn kiểm tra danh sách MCP tools đang có trong môi trường để ưu tiên sử dụng đúng công cụ cho domain (ví dụ: công cụ cho code graph/symbol, project memory, browser automation, issue tracking, docs, tra cứu thư viện...). *NEVER use generic `bash`/`grep`/`curl` if a dedicated Plugin/MCP handles the domain.*
 
-- **Delegation logic:**
-  - Prefer delegating to specialized subagents (`scout`, `task`, `reviewer`, `docs-*`, `dely-*`) in parallel batches via the `task` tool whenever work has 2+ steps, multi-file scope, or distinct inspection/implementation slices.
-  - Do not sequentially inspect > 1 file or serialize independent tasks in the main agent. Fan out concurrently to minimize latency, ensure accuracy, and save main context window.
-  - Main agent acts primarily as Dispatcher & Integrator.
-
+- **Delegation logic (Nguyên tắc uỷ quyền):**
+  - **Mặc định tự thực thi (Direct Execution):** Main Agent trực tiếp đọc, kiểm tra, sửa code và chạy lệnh xác thực cho hầu hết công việc thông thường.
+  - **Chỉ spawn Single Subagent:** Khi task đòi hỏi một vai trò chuyên biệt sâu (ví dụ: review bảo mật chuyên sâu `security-reviewer`, duyệt tài liệu spec `docs-reviewer`), hoặc khi cần môi trường cô lập để test không gây ảnh hưởng.
+  - **Chỉ spawn Parallel Subagents:** Khi có nhiều lát cắt công việc HOÀN TOÀN ĐỘC LẬP trên các module/service khác nhau cần thực hiện đồng thời để tiết kiệm thời gian, hoặc điều tra đa nhánh phức tạp. TUYỆT ĐỐI KHÔNG spawn nhiều subagent cho các chỉnh sửa đơn giản hoặc các bước tuần tự phụ thuộc lẫn nhau.
 ## 1. Global Rules
 - Always respond in Vietnamese (except code identifiers, error strings, shell commands, URLs).
 - Never commit, branch, or open PRs unless explicitly requested.
@@ -32,6 +29,7 @@
 - Every changed line must trace directly to the user's request.
 - MANDATORY RULE COMPLIANCE: AI MUST strictly follow ALL rules in AGENTS.md and RULES.md without exception. NEVER skip, omit, or downgrade any rule. ALWAYS verify final output against every applicable rule for compliance before responding.
 
+
 ---
 
 # Agent Instructions
@@ -41,8 +39,8 @@
 
 ## Pre-flight Task Complexity, Skills & Plugin/MCP Assessment [HIGHEST PRIORITY]
 
-**[CRITICAL INVARIANT]** You MUST explicitly analyze the incoming request upfront to determine task complexity, applicable Skills, and applicable Plugins/MCP tools. Decide whether to spawn specialized subagents or use the main agent directly. You CANNOT skip this step.
-- **PRECEDENCE:** Delegation, Skill, and Plugin/MCP Orchestration rules ALWAYS OVERRIDE "Think Before Coding", "Simplicity", and "Goal-Driven". Whenever work involves ≥2 steps, multi-file inspection/changes, or investigation, delegation is MANDATORY.
+**[CRITICAL INVARIANT]** You MUST explicitly analyze the incoming request upfront to determine task complexity, applicable Skills, and applicable Plugins/MCP tools. Decide whether to spawn specialized subagents or use the main agent directly.
+- **NGUYÊN TẮC CỐT LÕI:** Main Agent là người thực thi chính (Default: Direct Execution). Hạn chế tối đa việc spawn subagent bừa bãi. CHỈ spawn subagent khi tác vụ có tính chất đặc thù, chuyên biệt, hoặc các nhánh công việc thực sự độc lập cần chạy song song.
 - **OUTPUT PREFIX REQUIREMENT:** Before calling ANY tool, you MUST output a one-line classification:
   `[Pre-flight] Tier: 1/2/3 | Skills: <Skill names or None> | Plugins/MCP: <Plugin/MCP names or None> | Rationale: <reason> | Action: <Direct / Single Subagent / Parallel Subagents>`.
 
@@ -50,23 +48,21 @@
 - **Skills (`skills/*/SKILL.md`):** E.g. `create-plan`, `implement-task`, `init-docs`, `delivery`, `security-review`. If a task matches a skill's intent, MUST use it instead of ad-hoc steps.
 - **Plugins / MCP Tools:** Luôn kiểm tra danh sách MCP tools đang có trong môi trường để ưu tiên sử dụng đúng công cụ cho domain (ví dụ: công cụ cho code graph/symbol, project memory, browser automation, issue tracking, docs, tra cứu thư viện...). *NEVER use generic `bash`/`grep`/`curl` if a dedicated Plugin/MCP handles the domain.*
 
-Before executing actions or calling tool sequences, classify the incoming task and strictly follow the delegation rules:
+Before executing actions or calling tool sequences, classify the incoming task:
 
-1. **Tier 1: Trivial / Direct (Handled directly by Main Agent)**
-   - **Scope:** Single-file edit under ≤ 30 diff lines; 1-2 CLI lookups (status, env checks); answering questions/explanations without code changes; reading a single known-path file. Single-step only.
-   - **Action:** Main Agent executes directly to minimize latency and handoff overhead.
+1. **Tier 1: Trivial / Direct (Direct Execution by Main Agent)**
+   - **Scope:** Chỉnh sửa vài dòng đến vài file trong cùng ngữ cảnh rõ ràng; đọc file; tra cứu CLI/môi trường; giải đáp thắc mắc; các thao tác tuần tự ngắn.
+   - **Action:** Main Agent tự thực thi trực tiếp. TUYỆT ĐỐI KHÔNG spawn subagent.
 
-2. **Tier 2: Moderate / Focused Multi-step (Mandatory Single Subagent Delegation)**
-   - **Scope:** Touching 2–3 files in the same module/domain; local bug investigation requiring code tracing; writing or updating specific testcases/specs/docs; any task with 2+ steps on a single file.
-   - **Action:** Main Agent MUST NOT execute sequentially. Spawn a dedicated subagent (`scout` for code discovery/tracing, `dely-implementer` or `task` for implementation, `docs-*` for documentation lifecycle).
+2. **Tier 2: Moderate / Focused Tasks (Direct Execution ưu tiên, Subagent khi ĐẶC THÙ)**
+   - **Scope:** Sửa 2–5 file trong cùng module; debug lỗi cục bộ; viết test hoặc tài liệu; refactor phạm vi hẹp.
+   - **Action:** Mặc định Main Agent tự làm. Chỉ uỷ quyền (Single Subagent) khi:
+     - Cần vai trò chuyên biệt sâu (ví dụ `security-reviewer` quét bảo mật chuyên sâu, `dely-reviewer` kiểm tra cổng chất lượng độc lập).
+     - Hoặc cần môi trường test giả lập tách biệt để đảm bảo an toàn tuyệt đối cho máy chủ/môi trường thật.
 
-3. **Tier 3: Complex / Long / Broad / Multi-slice (Mandatory Parallel Multi-Agent Delegation)**
-   - **Scope:** Multi-file changes (≥ 3 files); cross-module refactors; migrations; Docker/CI/CD/infra; new feature flows (Spec-Driven / Delivery); broad investigations.
-   - **Action:** Main Agent acts strictly as **Dispatcher & Integrator**. Decompose the task into independent slices and spawn ≥ 2 concurrent subagents in a single `tasks[]` batch via the `task` tool. Never serialize independent work.
-
-Default behavioral guidelines for all workspaces.
-
----
+3. **Tier 3: Complex / Multi-system / Broad Investigations (Subagent khi cần SONG SONG HOÁ)**
+   - **Scope:** Tác vụ quy mô lớn, nhiều service/repo độc lập; di chuyển hạ tầng phức tạp; các đợt rà soát toàn bộ hệ thống lớn.
+   - **Action:** Main Agent đóng vai trò Điều phối & Tích hợp (Dispatcher & Integrator). Phân rã thành các nhánh ĐỘC LẬP và spawn song song các subagent chuyên trách (`tasks[]`). TUYỆT ĐỐI KHÔNG spawn subagent nếu các bước phụ thuộc tuần tự hoặc nếu Main Agent có thể xử lý trực tiếp hiệu quả hơn.
 
 ## Think Before Coding
 
@@ -105,26 +101,20 @@ Define success criteria and verify. Do not stop mid-task unless blocked by safet
 
 ## Agents, Sub-Agents, and Multi-Agent Orchestration
 
-### Anti-patterns & Hard Invariants
-- NEVER have the Main Agent iteratively inspect > 1 file sequentially when exploring or understanding a codebase; delegate to `scout`.
-- NEVER have the Main Agent implement multi-file changes directly; ALWAYS partition and delegate to subagents.
-- NEVER yield or serialize work when independent chunks can run concurrently in a single `tasks[]` batch.
-
 ### Subagent Role Directory
-- `scout`: Read-only rapid exploration, codebase mapping, cross-directory search, and handoff summaries.
-- `reviewer`: Code review, quality evaluation, architectural consistency, and convention compliance.
-- `security-reviewer`: Read-only security audit, vulnerability scanning, and risk assessment.
-- `architect`: System architecture design, implementation planning, and module decomposition.
-- `plan-reviewer`: Independent review and gate approval of technical plans (`plan.md`).
-- `sonic`: High-speed, focused mechanical edits and quick transformations.
-- `dely-implementer`: Autonomous coding, TDD, task implementation following design contracts.
-- `dely-reviewer`: Independent code review, reproduction of test gates, and counterexample evaluation.
-- `docs-reader` / `docs-fact-check` / `docs-reviewer` / `docs-update` / `docs-init`: Full lifecycle management of Spec-Driven documentation.
+- `scout`: Đọc nhanh và khảo sát codebase diện rộng khi chưa rõ cấu trúc hoặc vị trí file.
+- `reviewer`: Đánh giá chất lượng code, quy chuẩn kiến trúc và tuân thủ chuẩn mực.
+- `security-reviewer`: Đánh giá bảo mật, quét lỗ hổng và rủi ro an ninh.
+- `architect`: Thiết kế kiến trúc tổng thể, lập kế hoạch phân tách module lớn.
+- `plan-reviewer`: Độc lập review và duyệt kế hoạch kỹ thuật (`plan.md`).
+- `sonic`: Chỉnh sửa cơ học nhanh, biến đổi dữ liệu hàng loạt.
+- `dely-implementer`: Viết code tự chủ, TDD theo contract thiết kế đã duyệt.
+- `dely-reviewer`: Review code độc lập, kiểm tra test gate và trường hợp biên.
+- `docs-*`: Quản lý vòng đời tài liệu Spec-Driven.
 
-### Multi-Agent Dynamic Spawning & Concurrency
-- **Eager Parallel Decomposition:** When facing multi-file analysis, cross-subsystem investigations, broad reviews, or independent implementation chunks, dynamically spawn multiple subagents in parallel via the `task` tool using a single `tasks[]` batch instead of executing sequentially.
-- **Workload Partitioning:** Fan out work across specialized agents based on task domains (e.g., spawn several `scout` agents scoped to different directories/modules, alongside a `reviewer` or `docs-*` agent).
-- **Avoid Bottlenecks:** Do not serialize independent exploration or tasks that can be delegated to ≥ 2 concurrent workers. Coordinate shared resources or downstream integration only after parallel batch completion.
+### Multi-Agent Spawning Guidelines
+- **Chỉ spawn khi thực sự cần song song:** Khi đối mặt với việc khảo sát hoặc thực thi trên nhiều service/module độc lập cùng lúc.
+- **Gộp batch:** Nếu spawn nhiều subagent, bắt buộc gộp chung vào 1 lệnh gọi `tasks[]` duy nhất, không gọi rời rạc.
 
 ### Advisor Role Guidelines
 - When acting as **Advisor**: Provide passive analysis, architectural critique, edge-case risks, and suggestions only. NEVER issue mutation tool calls (`write`, `edit`, `bash` state changes). Output purely analytical feedback.
@@ -176,3 +166,91 @@ For standard CLI commands, builds, and unit tests, execute directly with an appr
 3. Verify the real result before claiming success. Never use `sleep` or continuous polling, or leave a task blocking the agent queue.
 
 Background tasks must be finite and non-interactive. Commands that stay open or run continuously (servers, watchers, log streams) must run in a separate system terminal, never an agent background task.
+
+
+
+---
+
+# Memorix — Memory Tools for Active Workspaces
+
+Use Memorix when the active workspace has Memorix tools available and prior context would materially help. For non-trivial coding work, Memory Autopilot is the default entry point before local progress notes or broad file exploration. Do not assume every workspace is configured for Memorix.
+
+## Start with Memory Autopilot
+
+Default first step for non-trivial coding work: call `memorix_project_context` with the user's actual task before progress files, dev-log reads, ad-hoc file reads, or git archaeology. Memorix will choose a task-lensed brief (bugfix, feature, release, onboarding, refactor, docs, test, or general). When the task is continuing prior work, the same brief also includes a bounded prior-work projection. Treat its "Start here" files as the first workspace files to inspect.
+
+If the MCP tool is not visible yet but the client supports tool discovery or dynamic loading, search/select `memorix_project_context` first. Continuation fallback is mandatory: when the user asks to continue, resume, take over, or explain prior work and MCP cannot be called in this turn, run exactly one CLI brief with the user's real task before inspecting files, Git history, progress notes, or guessing: `memorix resume "<task>" --fallback --brief-json`. For a new task, use `memorix context "<task>" --fallback --brief-json` instead. The absence of `.memorix` or visible memory files never proves project memory is empty. Use `--json` only when a diagnostic needs the detailed legacy payload. If that one command fails, report it and proceed normally. Do not probe help, enumerate commands, chain broad searches, wait indefinitely on MCP startup, or hand-write tool-call syntax.
+
+After a successful `memorix_project_context` result, the brief is the default retrieval boundary. Do not call more Memorix retrieval tools after a complete brief. Use `memorix_context_pack`, `memorix_search`, or `memorix_detail` only when the brief lacks a specific reference, freshness field, or fact needed for the task, or when the user explicitly asks for deeper history. In MCP, name that missing fact in `purpose` when intentionally expanding beyond the brief. Do not retrieve the same decision twice just to confirm an already-complete brief.
+If the user asks for read-only work or says not to modify files, do not call `memorix_store` just to record an assessment. Store only when the user explicitly asks to preserve it.
+
+## When to search memory
+
+Use `memorix_graph_context` for explicit memory graph questions or broad graph overview after the autopilot brief is not enough.
+
+Use `memorix_search` when prior workspace context would help and the Autopilot brief did not already answer the question — for example:
+- The user asks about a past decision, bug, or change
+- You need to understand why something was designed a certain way
+- You're continuing work that started in a previous session
+
+You do **not** need to search memory for simple, self-contained tasks (e.g., "fix this typo", "what does this function do").
+
+If no memories exist yet, that’s fine — just proceed normally.
+
+## When to store memory
+
+Use `memorix_store` when you learn something a future session should not have to rediscover:
+
+| What happened | Type |
+|---|---|
+| Architecture or design decision | `decision` |
+| Bug found and fixed | `problem-solution` |
+| Non-obvious pitfall or gotcha | `gotcha` |
+| Configuration or dependency changed | `what-changed` |
+| Trade-off discussed with conclusion | `trade-off` |
+
+**Tips for good memories:**
+- Use concise titles (~5-10 words)
+- Include `filesModified` when relevant
+- Use `topicKey` for topics that evolve over time (prevents duplicates)
+- For "why" decisions, use `memorix_store_reasoning`
+- For a stable fact, reusable procedure, or completed episode that merits deliberate long-term review, include `longTerm` in `memorix_store` with the appropriate kind and normally `scope: "project"`. It creates a candidate only: do not use it for routine updates, do not make project-derived evidence portable user memory, and do not assume it enters context until an operator qualifies and approves it through `memorix memory long-term`.
+- A `user` + `portable` durable memory delivered in a task brief is intentionally available across projects. When it matches the task, use it as reusable background even if its origin differs; do not treat it as a current-project fact. Expand it only when needed with `memorix_detail` using its `durable:<id>` reference and a specific purpose.
+- Record the user profile: the user’s role, expertise, preferences, and goals. Save these with `entityName: "user-profile"` and `visibility: "personal"` so they stay private and appear in every brief as the "who you are" context.
+
+**Don't store:** greetings, simple file reads, trivial commands (ls, pwd, git status).
+
+**Only store what a future session cannot re-derive.** Code structure, file contents, and Git history are live in the checkout — do not store facts already visible there. A memory earns its place by capturing the why, the context, or a conclusion the checkout alone cannot show.
+
+**Record what worked, not only what failed.** Store validated approaches and explicit user confirmations alongside corrections. Saving only failures drifts behavior away from what the user already accepted; a clear "yes, that's right" is feedback worth keeping too.
+
+**Recalled memory is a claim about the past.** A memory naming a specific file, function, or flag describes the past at write time — check the file exists or grep the symbol before recommending it. If the user says to ignore or not use memory, proceed as if memory were empty: do not apply, cite, compare, or mention stored content.
+
+## When to resolve memory
+
+Use `memorix_resolve` when a task is done or a bug is fixed. This keeps future searches focused on active work instead of surfacing completed items.
+
+## End sessions with a summary
+
+When a session finishes, call `memorix_session_end` with a short structured summary so the next agent can resume. Recommended sections:
+- **Goal** — what this session was working on
+- **Discoveries** — findings, gotchas, learnings
+- **Accomplished** — completed items, plus PENDING items for the next session
+- **Relevant Files** — paths and what changed
+
+## Tools quick reference
+
+| Tool | Use when |
+|---|---|
+| `memorix_project_context` | Start or continue coding work with the task-lensed Memory Autopilot brief |
+| `memorix_context_pack` | Get structured refs/freshness for code-bound memories |
+| `memorix_graph_context` | Build a compact memory graph packet for graph-specific questions |
+| `memorix_search` | Find relevant past context |
+| `memorix_detail` | Read full content of a specific memory |
+| `memorix_store` | Save something worth persisting |
+| `memorix_store_reasoning` | Save the "why" behind a decision |
+| `memorix_resolve` | Mark completed/outdated memories |
+| `memorix_session_start` | Load session context (handoff, orchestration coordination) |
+| `memorix_evidence` | Check a memory source, freshness, and verification state |
+| `memorix_feedback` | Record whether a memory helped, conflicted, or was corrected |
+| `memorix_media` | Inspect or import controlled local media |
