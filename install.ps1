@@ -119,20 +119,17 @@ if ($PSBoundParameters.ContainsKey('EnableMemorix')) {
 } elseif ($PSBoundParameters.ContainsKey('DisableMemorix')) {
     $enableMemorixVal = -not $DisableMemorix.IsPresent
 } else {
-    $existingMemorix = Get-Command "memorix" -ErrorAction SilentlyContinue
-    if ($existingMemorix) {
-        Write-Host "==> Đã phát hiện Memorix trên hệ thống tại: $($existingMemorix.Source)" -ForegroundColor Green
-        Write-Host "    -> Tự động kích hoạt và cập nhật Memorix lên phiên bản mới nhất..." -ForegroundColor Cyan
+    $memorixCmd = Get-Command "memorix" -ErrorAction SilentlyContinue
+    if ($memorixCmd) {
+        Write-Host "==> Đã phát hiện Memorix trên hệ thống tại: $($memorixCmd.Source)" -ForegroundColor Green
+    }
+    $memorixPrompt = Read-Host "Bạn có muốn cài đặt Memorix (MCP & Session Memory) không? [y/N]"
+    if (-not [string]::IsNullOrWhiteSpace($memorixPrompt) -and $memorixPrompt.Trim().ToLower() -eq 'y') {
         $enableMemorixVal = $true
+        Write-Host "==> Đã kích hoạt cài đặt Memorix." -ForegroundColor Green
     } else {
-        $memorixPrompt = Read-Host "Bạn có muốn cài đặt Memorix (MCP & Session Memory) không? [y/N]"
-        if (-not [string]::IsNullOrWhiteSpace($memorixPrompt) -and $memorixPrompt.Trim().ToLower() -eq 'y') {
-            $enableMemorixVal = $true
-            Write-Host "==> Đã kích hoạt cài đặt Memorix." -ForegroundColor Green
-        } else {
-            $enableMemorixVal = $false
-            Write-Host "==> Bỏ qua cài đặt Memorix (mặc định)." -ForegroundColor Yellow
-        }
+        $enableMemorixVal = $false
+        Write-Host "==> Bỏ qua cài đặt Memorix (mặc định)." -ForegroundColor Yellow
     }
 }
 
@@ -196,7 +193,22 @@ try {
     }
 
     Write-Host "==> Đang khởi chạy bootstrap.ps1 với các tham số đã chọn..." -ForegroundColor Cyan
-    & $bootstrapScript @bootstrapParams
+    $paramList = @()
+    foreach ($key in $bootstrapParams.Keys) {
+        if ($bootstrapParams[$key] -eq $true) {
+            $paramList += "-$key"
+        } else {
+            $paramList += "-$key", "$($bootstrapParams[$key])"
+        }
+    }
+
+    $psExe = Join-Path $PSHOME "pwsh.exe"
+    if (-not (Test-Path $psExe)) { $psExe = Join-Path $PSHOME "powershell.exe" }
+    if (-not (Test-Path $psExe)) { $psExe = "powershell" }
+
+    $argsArray = @("-NoProfile", "-ExecutionPolicy", "Bypass", "-File", $bootstrapScript) + $paramList
+    & $psExe $argsArray
+    if ($LASTEXITCODE -ne 0) { throw "bootstrap.ps1 failed with exit code $LASTEXITCODE." }
 } finally {
     Write-Host "==> Dọn dẹp tài nguyên tạm thời vào Thùng rác (Recycle Bin)..." -ForegroundColor Cyan
     Add-Type -AssemblyName Microsoft.VisualBasic -ErrorAction SilentlyContinue
@@ -225,3 +237,9 @@ try {
         }
     }
 }
+
+Write-Host ""
+Write-Host "================================================================" -ForegroundColor Green
+Write-Host " CAI DAT THANH CONG CHO CLAUDE CODE!" -ForegroundColor Green
+Write-Host " Da bao ve va kich hoat hook chan xoa cung (Trash Guard) cho Claude Code" -ForegroundColor Cyan
+Write-Host "================================================================" -ForegroundColor Green
