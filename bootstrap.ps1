@@ -285,9 +285,19 @@ if ($installGitnexus) {
         Write-Host "==> Installing gitnexus globally..." -ForegroundColor Cyan
         if (-not $DryRun) { npm install -g gitnexus --silent }
     }
-    $gn = Get-Command "gitnexus" -ErrorAction SilentlyContinue
-    if (-not $gn) { throw "Lỗi: Không tìm thấy gitnexus." }
-    $absGn = ($gn.Source).Replace('\', '\\')
+    $gn = Get-Command "gitnexus.cmd" -ErrorAction SilentlyContinue
+    if (-not $gn) {
+        $gn = Get-Command "gitnexus" -ErrorAction SilentlyContinue
+    }
+    $gnPath = if ($gn -and $gn.Source) { $gn.Source } else { "" }
+    if ($gnPath -and $gnPath.EndsWith(".ps1", [System.StringComparison]::OrdinalIgnoreCase)) {
+        $cmdCandidate = [System.IO.Path]::ChangeExtension($gnPath, ".cmd")
+        if (Test-Path $cmdCandidate) {
+            $gnPath = $cmdCandidate
+        }
+    }
+    if (-not $gnPath) { throw "Lỗi: Không tìm thấy gitnexus." }
+    $absGn = $gnPath.Replace('\', '\\')
 }
 # Cài đặt context7
 $absCtx2 = ""
@@ -451,7 +461,7 @@ if ($installGlab) {
 }
 
 # Chuẩn bị đường dẫn gitnexus
-$escapedGitnexus = if ($gn -and $gn.Source) { ($gn.Source).Replace('\', '\\') } else { "" }
+$escapedGitnexus = if ($absGn) { $absGn } elseif ($gn -and $gn.Source) { ($gn.Source).Replace('\', '\\') } else { "" }
 # Xử lý claude.json (hoặc mcp.json)
 $templatesDir = Join-Path $PSScriptRoot "templates"
 $claudeTemplatePath = Join-Path $templatesDir "claude.json"
