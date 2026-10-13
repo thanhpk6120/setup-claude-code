@@ -69,6 +69,34 @@ function Confirm-McpInstall {
     return $false
 }
 
+# 1. Xu ly lua chon Memorix
+if (-not $PSBoundParameters.ContainsKey('EnableMemorix') -and -not $PSBoundParameters.ContainsKey('DisableMemorix')) {
+    $installMemorix = Confirm-McpInstall -Name "memorix"
+    if (-not $installMemorix) { Write-Host "Skipped MCP 'memorix' theo lua chon nguoi dung." -ForegroundColor Yellow }
+    if ($installMemorix) {
+        $EnableMemorix = $true
+    } else {
+        $DisableMemorix = $true
+    }
+}
+
+# 2. Xac nhan cai dat cac MCP Server khac
+Write-Host "==> Xac nhan cai dat cac MCP Server khac..." -ForegroundColor Cyan
+$installAtlassian = Confirm-McpInstall -Name "company-atlassian"
+if (-not $installAtlassian) { Write-Host "Skipped MCP 'company-atlassian' theo lua chon nguoi dung." -ForegroundColor Yellow }
+
+$installGitnexus = Confirm-McpInstall -Name "gitnexus"
+if (-not $installGitnexus) { Write-Host "Skipped MCP 'gitnexus' theo lua chon nguoi dung." -ForegroundColor Yellow }
+
+$installContext7 = Confirm-McpInstall -Name "context7"
+if (-not $installContext7) { Write-Host "Skipped MCP 'context7' theo lua chon nguoi dung." -ForegroundColor Yellow }
+
+$installGlab = Confirm-McpInstall -Name "glab"
+if (-not $installGlab) { Write-Host "Skipped MCP 'glab' theo lua chon nguoi dung." -ForegroundColor Yellow }
+
+$installCloakbrowser = Confirm-McpInstall -Name "cloakbrowser"
+if (-not $installCloakbrowser) { Write-Host "Skipped MCP 'cloakbrowser' theo lua chon nguoi dung." -ForegroundColor Yellow }
+
 # Doc cau hinh tu .env neu ton tai
 $envMap = @{}
 $dotEnvPath = Join-Path $PSScriptRoot ".env"
